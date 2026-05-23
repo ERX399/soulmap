@@ -256,7 +256,7 @@ async function renderOV(withStats) {
     <div class="stat-card"><div class="v">${avg}</div><div class="l">平均字段</div></div>`;
 
   // 最近更新（取已加载数据的前6个，已按时间排序）
-  const keys = sortProfileKeys(Object.keys(currentProfiles)).slice(0, 6);
+  const keys = Object.keys(currentProfiles).slice(0, 6);
   const recent = document.getElementById('ov-recent');
   if (keys.length) {
     recent.innerHTML = renderCards(keys);
@@ -273,7 +273,7 @@ async function renderOV(withStats) {
 // ===== 用户列表 =====
 function renderUL(pageData, isFirst) {
   const el = document.getElementById('ulist');
-  const keys = sortProfileKeys(Object.keys(pageData || {}));
+  const keys = Object.keys(pageData || {});
   // 仅第一页或主动切换时重置内容，去除重复追加导致元素多次出现
   const resetContent = isFirst || !el.innerHTML.includes('class="card"');
   if (resetContent) {
