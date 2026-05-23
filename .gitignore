@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.pyo
+*.db
+*.json
+!_conf_schema.json
+.DS_Store
+*.log
+Github账户令牌
+.backup/

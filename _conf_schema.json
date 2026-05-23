@@ -1,0 +1,165 @@
+{
+    "basic": {
+        "description": "基础设置",
+        "type": "object",
+        "items": {
+            "session_based": {
+                "description": "按会话独立画像",
+                "type": "bool",
+                "default": false,
+                "hint": "开启后，同一用户在不同群聊/私聊使用不同画像。"
+            },
+            "debug_log_level": {
+                "description": "日志级别",
+                "type": "string",
+                "default": "INFO",
+                "options": [
+                    "INFO",
+                    "DEBUG"
+                ],
+                "hint": "INFO：普通日志；DEBUG：详细调试日志。"
+            }
+        }
+    },
+    "profile": {
+        "description": "画像设置",
+        "type": "object",
+        "items": {
+            "allowed_fields": {
+                "description": "画像字段",
+                "type": "list",
+                "default": [
+                    "对用户的称呼",
+                    "性别",
+                    "年龄",
+                    "所在地",
+                    "生日",
+                    "爱吃",
+                    "忌口",
+                    "爱好",
+                    "职业",
+                    "重要节日",
+                    "恐惧/弱点",
+                    "作息规律",
+                    "技能水平",
+                    "健康状况",
+                    "宠物",
+                    "备注"
+                ],
+                "hint": "允许记录的字段名。"
+            },
+            "max_notes_count": {
+                "description": "备注条数",
+                "type": "int",
+                "default": 5,
+                "hint": "备注最多保留多少条。"
+            },
+            "profile_prompt": {
+                "description": "画像提示词",
+                "type": "text",
+                "default": "<用户画像系统>\n<当前画像>\n{profile_summary}\n</当前画像>\n<可用字段>{allowed_fields_display}</可用字段>\n\n【核心规则】\n★ 仅在用户主动提及相关话题时，才使用画像中的信息 ★\n★ 但你应当时刻留意对话中透露的任何个人信息并记录 ★\n\n<记录规则>\n1. 主动捕捉：用户对话中任何透露个人信息的内容都应记录，无需用户明确说\"记住\"。包括但不限于：\n   - 直接陈述：\"我在北京工作\" → 所在地=北京\n   - 隐含信息：\"明天要考试\" → 职业=学生（如未记录）\n   - 偏好表达：\"又点了奶茶\" → 爱吃中追加奶茶\n   - 情绪/状态：\"我家猫又拆家了\" → 宠物=猫\n   - 时间线索：\"下周是我生日\" → 结合当前日期推算\n2. 不刻意套话、不主动询问个人信息，保持对话自然\n3. 更新备注之外的字段时带上旧信息一起覆写，如：用户之前爱吃火锅，现在说也喜欢奶茶→[Profile: 爱吃=火锅、奶茶]\n4. 备注字段：每条不超过20字，用分号分隔，系统自动保留最近{max_notes_count}条。你不需要输出编号，也不需要重复之前的信息\n5. 优先把信息填入已有的字段，再考虑填入备注（备注不是永久保存的）\n6. 每次回复中，同一个字段只输出一条最终结果的标记，不要输出中间步骤或重复标记\n7. 合理推断：如果用户的话语中能合理推断出某个字段的值，可以记录。但不确定的信息用备注记录而非直接填字段\n</记录规则>\n\n<输出格式>\n记录/更新：[Profile: 字段=值] 或 [Profile: 对用户的称呼=小明, 性别=女]\n删除备注条目：[ProfileDelete: 条目编号] 如 [ProfileDelete: 1] 或 [ProfileDelete: 1, 2]\n删除整个字段：[ProfileDelete: 字段名] 如 [ProfileDelete: 对用户的称呼]\n</输出格式>\n</用户画像系统>",
+                "hint": "支持变量：{profile_summary}、{allowed_fields_display}、{max_notes_count}。"
+            }
+        }
+    },
+    "audit": {
+        "description": "写入审核",
+        "type": "object",
+        "items": {
+            "profile_audit_enabled": {
+                "description": "启用规则审核",
+                "type": "bool",
+                "default": true,
+                "hint": "过滤空值、乱码和不合理画像。"
+            },
+            "profile_audit_use_llm": {
+                "description": "启用LLM审核",
+                "type": "bool",
+                "default": false,
+                "hint": "规则审核后再调用模型审核；失败会自动跳过。"
+            },
+            "profile_audit_model": {
+                "description": "审核模型",
+                "type": "string",
+                "default": "",
+                "_special": "select_provider",
+                "hint": "选择用于画像审核的模型；留空用默认模型。"
+            },
+            "profile_audit_max_value_length": {
+                "description": "字段最大长度",
+                "type": "int",
+                "default": 80,
+                "hint": "非备注字段超过后会截断。"
+            },
+            "profile_audit_prompt": {
+                "description": "审核提示词",
+                "type": "text",
+                "default": "你是用户画像审核器。请审核候选画像是否合理、明确、无臆测。只返回JSON对象，格式：{\\\"字段\\\":{\\\"action\\\":\\\"keep|modify|drop\\\",\\\"value\\\":\\\"修正值\\\",\\\"reason\\\":\\\"原因\\\"}}。不确定、无意义、隐私过度推断、格式明显错误时 drop。",
+                "hint": "仅 LLM 审核开启时使用。"
+            }
+        }
+    },
+    "permission": {
+        "description": "权限与群聊",
+        "type": "object",
+        "items": {
+            "admin_permission_denied_msg": {
+                "description": "管理员拒绝提示",
+                "type": "string",
+                "default": "错误：此命令仅限管理员使用。",
+                "hint": "非管理员使用管理命令时返回。"
+            },
+            "allow_profile_in_group": {
+                "description": "允许群聊查看画像",
+                "type": "bool",
+                "default": false,
+                "hint": "关闭时，用户需私聊查看画像。"
+            },
+            "group_profile_denied_msg": {
+                "description": "群聊拒绝提示",
+                "type": "string",
+                "default": "画像内容可能涉及隐私，请在私聊查看",
+                "hint": "群聊查看画像被拒绝时返回。"
+            }
+        }
+    },
+    "webui": {
+        "description": "WebUI",
+        "type": "object",
+        "items": {
+            "webui_host": {
+                "description": "监听地址",
+                "type": "string",
+                "default": "0.0.0.0",
+                "hint": "WebUI 后端监听地址。"
+            },
+            "webui_port": {
+                "description": "端口",
+                "type": "int",
+                "default": 3999,
+                "hint": "WebUI 后端端口。"
+            },
+            "webui_release_occupied_port": {
+                "description": "释放占用端口",
+                "type": "bool",
+                "default": true,
+                "hint": "端口被旧进程占用时尝试自动释放。"
+            },
+            "webui_token": {
+                "description": "访问密码",
+                "type": "string",
+                "default": "",
+                "hint": "建议留空并用环境变量 SOULMAP_WEBUI_TOKEN 设置。",
+                "secret": true,
+                "is_secret": true,
+                "format": "password"
+            },
+            "webui_debug": {
+                "description": "WebUI调试",
+                "type": "bool",
+                "default": false,
+                "hint": "开启前后端调试日志。"
+            }
+        }
+    }
+}

@@ -1,0 +1,12 @@
+name: soulmap
+display_name: 人物画像beta
+desc: AI驱动的用户画像收集系统，支持聊天中自动提取用户信息，并提供WebUI管理界面；本次更新新增可配置WebUI监听地址/端口、动态字段统计、自定义删除确认弹窗、更稳健的接口错误处理、可选 WebUI 访问密码鉴权，独立 WebUI 使用 web/index.html、web/login.html、web/app.js 结构，后端为 aiohttp，登录页密码输入始终不显示明文，并增强 JSON 自动修复与排序整理；新增画像写入审核、独立平台数据统计、WebUI 批量清理词条与用户展示排序优化。
+help: 用户指令：我的画像、删除画像、清空画像；管理员指令：查询画像、画像统计、平台调试；WebUI支持批量清理包含指定关键词的画像词条，并支持通过webui.py --host/--port或SOULMAP_HOST/SOULMAP_PORT配置监听地址与端口；建议通过 SOULMAP_WEBUI_TOKEN 或 --token 启用独立 WebUI 密码鉴权。
+version: v1.2.2
+author: ERX399
+repo: https://github.com/ERX399/soulmap
+support_platforms:
+  - aiocqhttp
+  - telegram
+  - gewechat
+
