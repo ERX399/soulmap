@@ -355,20 +355,24 @@ const pa = currentProfiles[a] || {};
 const pb = currentProfiles[b] || {};
 const na = profileDisplayName(a, pa);
 const nb = profileDisplayName(b, pb);
-// 1. 名称排序: a-z > 中文 > 数字
-const cmp = compareSmart(na, nb);
-if (cmp !== 0) return cmp;
-// 2. 同名: 有平台优先
+const ta = String(pa._last_updated || '');
+const tb = String(pb._last_updated || '');
+const ra = textRank(na);
+const rb = textRank(nb);
+// 1. 名称分组: a-z > 中文 > 数字
+if (ra !== rb) return ra - rb;
+// 2. 同组: 有平台优先
 const platA = pa._platform ? 0 : 1;
 const platB = pb._platform ? 0 : 1;
 if (platA !== platB) return platA - platB;
-// 3. 同名同平台: 星标优先
+// 3. 同平台: 星标优先
 const starA = isStarred(a) ? 0 : 1;
 const starB = isStarred(b) ? 0 : 1;
 if (starA !== starB) return starA - starB;
-// 4. 更新时间倒序
-const ta = String(pa._last_updated || '');
-const tb = String(pb._last_updated || '');
+// 4. 名称排序
+const cmp = na.localeCompare(nb, 'zh-CN', {sensitivity:'base'});
+if (cmp !== 0) return cmp;
+// 5. 更新时间倒序
 return tb.localeCompare(ta);
 });
 }
