@@ -420,7 +420,7 @@ class SoulMapWebServer:
         profiles = merge_platforms(profiles, keys)
         keys = sort_profile_keys(keys, profiles)
         total = len(keys)
-        return self._json({"profiles": {k: profiles[k] for k in keys}, "fields": fields, "pagination": {"page": 1, "size": total, "total": total, "total_pages": 1}})
+        return self._json({"profiles": {k: profiles[k] for k in keys}, "profile_keys": keys, "fields": fields, "pagination": {"page": 1, "size": total, "total": total, "total_pages": 1}})
 
     async def handle_batch_delete(self, request):
         body = await self._read_json(request)
