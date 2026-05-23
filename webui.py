@@ -418,15 +418,16 @@ class SoulMapWebServer:
         keys = cache.get_sorted_keys()
         if q:
             keys = [k for k in keys if q in k.lower() or (isinstance(profiles.get(k), dict) and any(q in str(v).lower() for v in profiles[k].values()))]
+        # 先合并平台数据，再排序（平台优先级需要 _platform 字段）
+        profiles = merge_platforms(profiles, keys)
         keys = sort_profile_keys(keys, profiles)
         total = len(keys)
         if total <= 100:
-            all_profiles = merge_platforms(profiles, keys)
-            return self._json({"profiles": all_profiles, "fields": fields, "pagination": {"page": 1, "size": total, "total": total, "total_pages": 1}})
+            return self._json({"profiles": {k: profiles[k] for k in keys}, "fields": fields, "pagination": {"page": 1, "size": total, "total": total, "total_pages": 1}})
         total_pages = max(1, (total + size - 1) // size)
         page = max(1, min(page, total_pages))
         page_keys = keys[(page - 1) * size:(page - 1) * size + size]
-        page_profiles = merge_platforms(profiles, page_keys)
+        page_profiles = {k: profiles[k] for k in page_keys}
         return self._json({"profiles": page_profiles, "fields": fields, "pagination": {"page": page, "size": size, "total": total, "total_pages": total_pages}})
 
     async def handle_batch_delete(self, request):
