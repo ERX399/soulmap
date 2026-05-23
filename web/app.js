@@ -12,8 +12,8 @@ let bulkMode = false;
 const selectedCards = new Set();
 const LOCAL_CACHE_KEY = 'soulmap_webui_profiles_cache_v2';
 const API_BASE = window.location.pathname.replace(/\/[^/]*$/, '').replace(/\/$/, '');
-const WEBUI_DEBUG = (typeof window.SOULMAP_WEBUI_DEBUG === 'boolean')
-  ? window.SOULMAP_WEBUI_DEBUG
+const WEBUI_DEBUG = (typeof window.soulmapWebuiDebug === 'boolean')
+  ? window.soulmapWebuiDebug
   : (localStorage.getItem('soulmap_debug') !== '0');
 function uiLog(level, msg, data) {
   if (!WEBUI_DEBUG && level === 'debug') return;

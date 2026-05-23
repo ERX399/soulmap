@@ -782,7 +782,7 @@ body {
     background: var(--sf1);
     border-top: 1px solid var(--outlinev);
     border-bottom: none;
-    padding-bottom: env(safe-area-inset-bottom);
+    padding-bottom: 0;
   }
   .tab { padding: 10px 6px 8px; font-size: 11px; }
   .tab .icon svg { width: 20px; height: 20px; }
@@ -800,7 +800,7 @@ body {
   .dialog-head h2 { font-size: 15px; }
   .dialog-acts { 
     padding: 10px 12px; 
-    padding-bottom: calc(10px + env(safe-area-inset-bottom));
+    padding-bottom: 10px;
   }
   .add-row { 
     flex-wrap: wrap;
@@ -914,7 +914,7 @@ body {
 </div>
 
 <div class="snackbar" id="snk"></div>
-<script>window.SOULMAP_WEBUI_DEBUG = __SOULMAP_WEBUI_DEBUG__;</script>
+<script>window.soulmapWebuiDebug = __WEBUI_DEBUG__;</script>
 <script src="/web/app.js"></script>
 </body>
 </html>

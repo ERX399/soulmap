@@ -21,10 +21,10 @@ from astrbot.core.message.components import Plain
 
 def _get_runtime_state() -> dict:
     """跨模块热更新共享的运行时状态，不依赖额外 py 文件。"""
-    state = getattr(builtins, "_SOULMAP_RUNTIME_STATE", None)
+    state = getattr(builtins, "_soulmap_runtime_state", None)
     if not isinstance(state, dict):
         state = {"server": None, "thread": None, "port": None}
-        setattr(builtins, "_SOULMAP_RUNTIME_STATE", state)
+        setattr(builtins, "_soulmap_runtime_state", state)
     return state
 
 
@@ -1278,10 +1278,10 @@ class SoulMapPlugin(Star):
             host = str(self._cfg("webui_host", "0.0.0.0"))
             port = int(self._cfg("webui_port", 3999))
             debug = bool(self._cfg("webui_debug", False))
-            token = str(self._cfg("webui_token", "") or "").strip()
+            password = str(self._cfg("webui_password", "") or "").strip()
             release_occupied_port = bool(self._cfg("webui_release_occupied_port", True))
             plugin_dir = str(Path(__file__).parent)
-            auth_state = "on" if token else "off"
+            auth_state = "on" if password else "off"
 
             def run():
                 try:
@@ -1291,7 +1291,7 @@ class SoulMapPlugin(Star):
                         port=port,
                         plugin_dir=plugin_dir,
                         debug=debug,
-                        token=token,
+                        password=password,
                         release_occupied_port=release_occupied_port
                     )
                     self._webui_port = port

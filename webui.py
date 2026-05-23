@@ -25,14 +25,14 @@ from urllib.parse import unquote
 
 from aiohttp import web
 
-DATA_DIR = Path(os.environ.get("SOULMAP_DATA_DIR", "./data"))
+DATA_DIR = Path("./data")
 PROFILES_FILE = DATA_DIR / "user_profiles.json"
 PLATFORM_FILE = DATA_DIR / "user_platform.json"
 CACHE_FILE = DATA_DIR / "user_profiles.cache.json"
-HOST = os.environ.get("SOULMAP_HOST", "0.0.0.0")
+HOST = "0.0.0.0"
 DEFAULT_PORT = 3999
-WEBUI_DEBUG = os.environ.get("SOULMAP_DEBUG", "0").lower() in ("1", "true", "yes", "debug")
-WEBUI_TOKEN = os.environ.get("SOULMAP_WEBUI_TOKEN", "").strip()
+WEBUI_DEBUG = False
+WEBUI_PASSWORD = ""
 
 DEFAULT_FIELDS = [
     "对用户的称呼", "性别", "年龄", "所在地", "生日", "爱吃", "忌口",
@@ -316,13 +316,13 @@ class SoulMapWebServer:
     SESSION_TIMEOUT = 12 * 3600
 
     def __init__(self, data_dir: str, host="0.0.0.0", port=3999, plugin_dir=None,
-                 debug=False, token="", release_occupied_port=True):
+                 debug=False, password="", release_occupied_port=True):
         self.data_dir = Path(data_dir)
         self.host = str(host)
         self.port = parse_port(port)
         self.plugin_dir = Path(plugin_dir) if plugin_dir else Path(__file__).parent
         self.debug = bool(debug)
-        self.token = str(token or os.environ.get("SOULMAP_WEBUI_TOKEN", "")).strip()
+        self.password = str(password or "").strip()
         self.release_occupied_port = bool(release_occupied_port)
         self.sessions: dict[str, float] = {}
         self.loop: Optional[asyncio.AbstractEventLoop] = None
@@ -366,7 +366,7 @@ class SoulMapWebServer:
             return web.json_response({"error": str(e)}, status=500)
 
     def _is_authenticated(self, request) -> bool:
-        if not self.token:
+        if not self.password:
             return True
         sid = request.cookies.get(self.SESSION_COOKIE, "")
         exp = self.sessions.get(sid)
@@ -381,7 +381,7 @@ class SoulMapWebServer:
         path = request.path
         public = path in ("/login.html", "/auth/info", "/auth/login")
         static = path in ("/web/app.js", "/webui.js")
-        if not self.token or public or static or self._is_authenticated(request):
+        if not self.password or public or static or self._is_authenticated(request):
             return await handler(request)
         if path.startswith("/api/") or path.startswith("/auth/"):
             return web.json_response({"error": "未授权，请先登录 WebUI"}, status=401)
@@ -399,10 +399,10 @@ class SoulMapWebServer:
             return {}
 
     async def handle_index(self, request):
-        if self.token and not self._is_authenticated(request):
+        if self.password and not self._is_authenticated(request):
             raise web.HTTPFound("/login.html")
         path = self.plugin_dir / "web" / "index.html"
-        content = path.read_text(encoding="utf-8").replace("__SOULMAP_WEBUI_DEBUG__", "true" if (WEBUI_DEBUG or self.debug) else "false")
+        content = path.read_text(encoding="utf-8").replace("__WEBUI_DEBUG__", "true" if (WEBUI_DEBUG or self.debug) else "false")
         return web.Response(text=content, content_type="text/html", charset="utf-8", headers={"Cache-Control": "no-store"})
 
     async def handle_js(self, request):
@@ -411,7 +411,7 @@ class SoulMapWebServer:
         return web.Response(text=content, content_type="application/javascript", charset="utf-8", headers={"Cache-Control": "no-store"})
 
     async def handle_login(self, request):
-        if not self.token or self._is_authenticated(request):
+        if not self.password or self._is_authenticated(request):
             raise web.HTTPFound("/")
         path = self.plugin_dir / "web" / "login.html"
         return web.Response(
@@ -422,14 +422,14 @@ class SoulMapWebServer:
         )
 
     async def handle_auth_info(self, request):
-        return self._json({"requires_auth": bool(self.token), "authenticated": self._is_authenticated(request)})
+        return self._json({"requires_auth": bool(self.password), "authenticated": self._is_authenticated(request)})
 
     async def handle_auth_login(self, request):
-        if not self.token:
+        if not self.password:
             return self._json({"success": True, "requires_auth": False})
         body = await self._read_json(request)
         password = str(body.get("password") or "")
-        if not secrets.compare_digest(password, self.token):
+        if not secrets.compare_digest(password, self.password):
             return self._json({"success": False, "error": "Unauthorized"}, 401)
         sid = secrets.token_urlsafe(32)
         self.sessions[sid] = time.time() + self.SESSION_TIMEOUT
@@ -619,9 +619,9 @@ class SoulMapWebServer:
         return self._json({"error": "未找到用户"}, 404)
 
     async def _async_start(self):
-        global DATA_DIR, PROFILES_FILE, PLATFORM_FILE, CACHE_FILE, WEBUI_DEBUG, WEBUI_TOKEN
-        WEBUI_DEBUG = self.debug or os.environ.get("SOULMAP_DEBUG", "0").lower() in ("1", "true", "yes", "debug")
-        WEBUI_TOKEN = self.token
+        global DATA_DIR, PROFILES_FILE, PLATFORM_FILE, CACHE_FILE, WEBUI_DEBUG, WEBUI_PASSWORD
+        WEBUI_DEBUG = self.debug
+        WEBUI_PASSWORD = self.password
         DATA_DIR = self.data_dir
         PROFILES_FILE = DATA_DIR / "user_profiles.json"
         PLATFORM_FILE = DATA_DIR / "user_platform.json"
@@ -633,7 +633,7 @@ class SoulMapWebServer:
         await self.runner.setup()
         self.site = web.TCPSite(self.runner, self.host, self.port, reuse_address=True)
         await self.site.start()
-        log("INFO", f"启动于 http://{self.host}:{self.port} (aiohttp, auth={'on' if self.token else 'off'})")
+        log("INFO", f"启动于 http://{self.host}:{self.port} (aiohttp, auth={'on' if self.password else 'off'})")
 
     def start(self):
         def runner():
@@ -684,19 +684,19 @@ class SoulMapWebServer:
         pass
 
 
-def start_server(data_dir: str, host: str = "0.0.0.0", port: int = 3999, plugin_dir: str = None, debug: bool = False, token: str = "", release_occupied_port: bool = True):
-    return SoulMapWebServer(data_dir, host, port, plugin_dir, debug, token, release_occupied_port).start()
+def start_server(data_dir: str, host: str = "0.0.0.0", port: int = 3999, plugin_dir: str = None, debug: bool = False, password: str = "", release_occupied_port: bool = True):
+    return SoulMapWebServer(data_dir, host, port, plugin_dir, debug, password, release_occupied_port).start()
 
 
 def main():
     parser = argparse.ArgumentParser(description="SoulMap WebUI")
     parser.add_argument("--host", default=HOST)
-    parser.add_argument("--port", default=os.environ.get("SOULMAP_PORT", str(DEFAULT_PORT)))
+    parser.add_argument("--port", default=str(DEFAULT_PORT))
     parser.add_argument("--data-dir", default=str(DATA_DIR))
-    parser.add_argument("--token", default=os.environ.get("SOULMAP_WEBUI_TOKEN", ""))
+    parser.add_argument("--password", default="")
     parser.add_argument("--debug", action="store_true")
     args = parser.parse_args()
-    server = start_server(args.data_dir, args.host, parse_port(args.port), str(Path(__file__).parent), args.debug, args.token, True)
+    server = start_server(args.data_dir, args.host, parse_port(args.port), str(Path(__file__).parent), args.debug, args.password, True)
     try:
         while True:
             time.sleep(3600)

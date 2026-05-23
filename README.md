@@ -91,7 +91,7 @@ AI在识别到用户信息时，会在回复末尾添加标签：
 | webui_host | WebUI监听地址 | 0.0.0.0 |
 | webui_port | WebUI端口 | 3999 |
 | webui_release_occupied_port | WebUI端口被占用时自动释放占用进程 | true |
-| webui_token | WebUI访问密码（建议环境变量） | 空 |
+| webui_password | WebUI访问密码 | 空 |
 
 ### 提示词模板变量
 
@@ -102,18 +102,12 @@ AI在识别到用户信息时，会在回复末尾添加标签：
 
 ## WebUI
 
-WebUI 是独立服务，默认监听 `3999` 端口，可通过以下方式修改；如配置访问密码，会先进入独立登录页，密码输入内容始终不会由插件前端明文显示；建议使用 SOULMAP_WEBUI_TOKEN 环境变量避免 AstrBot 配置面板明文展示：
+WebUI 是独立服务，默认监听 `3999` 端口。AstrBot 内使用插件配置项 `webui_host`、`webui_port`、`webui_password` 修改监听地址、端口和访问密码；如配置访问密码，会先进入独立登录页，密码输入内容始终不会由插件前端明文显示。
 
 独立 WebUI 后端使用 aiohttp AppRunner/TCPSite 管理生命周期；插件热更新/停用时会显式 stop/cleanup 释放端口。
 
 ```bash
-python webui.py --host 0.0.0.0 --port 8080 --token your-secret-token
-```
-
-也可以使用环境变量：
-
-```bash
-SOULMAP_PORT=8080 SOULMAP_WEBUI_TOKEN=your-secret-token python webui.py
+python webui.py --host 0.0.0.0 --port 8080 --password your-password
 ```
 
 ## 数据存储
