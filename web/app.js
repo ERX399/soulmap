@@ -346,18 +346,19 @@ return !!(p && p._starred);
 }
 async function toggleStar(key) {
 const p = currentProfiles[key];
-const isStarred = p && p._starred;
+const isStarred = !!(p && p._starred);
 try {
-const d = await apiJson(apiUrl(`/api/profile/${enc(key)}`), {
+let d;
+if (isStarred) {
+d = await apiJson(apiUrl(`/api/profile/${enc(key)}/_starred`), { method: 'DELETE' });
+} else {
+d = await apiJson(apiUrl(`/api/profile/${enc(key)}`), {
 method: 'PUT',
 headers: { 'Content-Type': 'application/json' },
-body: JSON.stringify({ field: '_starred', value: isStarred ? '' : 'true' })
+body: JSON.stringify({ field: '_starred', value: 'true' })
 });
-if (d.success) {
-// 如果取消星标，删除字段；如果加星标，已写入
-if (isStarred) {
-await apiJson(apiUrl(`/api/profile/${enc(key)}/_starred`), { method: 'DELETE' });
 }
+if (d.success) {
 statsCache = null;
 await refreshData();
 }

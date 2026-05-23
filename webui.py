@@ -184,6 +184,31 @@ def save_profiles(data: dict):
     cache.invalidate()
 
 
+def _now_text() -> str:
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _ensure_profile(profiles: dict, user_key: str) -> dict:
+    if user_key not in profiles or not isinstance(profiles.get(user_key), dict):
+        profiles[user_key] = {}
+    return profiles[user_key]
+
+
+def _set_profile_field(profiles: dict, user_key: str, field: str, value: str):
+    profile = _ensure_profile(profiles, user_key)
+    profile[field] = value
+    profile["_last_updated"] = _now_text()
+
+
+def _delete_profile_field(profiles: dict, user_key: str, field: str) -> bool:
+    profile = profiles.get(user_key)
+    if not isinstance(profile, dict) or field not in profile:
+        return False
+    del profile[field]
+    profile["_last_updated"] = _now_text()
+    return True
+
+
 def load_platforms() -> dict:
     return _load_json_file(PLATFORM_FILE)
 
@@ -416,7 +441,7 @@ class SoulMapWebServer:
         keys = cache.get_sorted_keys()
         if q:
             keys = [k for k in keys if q in k.lower() or (isinstance(profiles.get(k), dict) and any(q in str(v).lower() for v in profiles[k].values()))]
-        # 先合并平台数据，再排序（平台优先级需要 _platform 字段）
+        # 先合并平台数据用于展示，再按星标/名称排序
         profiles = merge_platforms(profiles, keys)
         keys = sort_profile_keys(keys, profiles)
         total = len(keys)
@@ -549,31 +574,16 @@ class SoulMapWebServer:
         value = str(body.get("value", "")).strip()
         if not user_key or not field:
             return self._json({"error": "user_key 和 field 不能为空"}, 400)
-        # 元字段（以 _ 开头）可直接写入，允许空值（用于星标取消等操作）
-        if field.startswith("_"):
-            profiles = cache.get_data()
-            if value:
-                if user_key in profiles and isinstance(profiles[user_key], dict):
-                    profiles[user_key][field] = value
-                    profiles[user_key]["_last_updated"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                else:
-                    profiles[user_key] = {field: value, "_last_updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
-                save_profiles(profiles)
-            else:
-                # 空值表示删除该元字段
-                if user_key in profiles and isinstance(profiles[user_key], dict) and field in profiles[user_key]:
-                    del profiles[user_key][field]
-                    profiles[user_key]["_last_updated"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    save_profiles(profiles)
-            return self._json({"success": True, "message": f"已更新元字段 {field}"})
+
+        # WebUI 只允许修改 _starred 这个元字段，避免误改 _platform/_last_updated 等内部字段。
+        if field.startswith("_") and field != "_starred":
+            return self._json({"error": f"不允许直接修改内部字段 {field}"}, 400)
+
         if not value:
             return self._json({"error": "value 不能为空"}, 400)
+
         profiles = cache.get_data()
-        if user_key in profiles and isinstance(profiles[user_key], dict):
-            profiles[user_key][field] = value
-            profiles[user_key]["_last_updated"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        else:
-            profiles[user_key] = {field: value, "_last_updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+        _set_profile_field(profiles, user_key, field, value)
         save_profiles(profiles)
         return self._json({"success": True, "message": f"已更新 {field}"})
 
@@ -583,9 +593,9 @@ class SoulMapWebServer:
         profiles = cache.get_data()
         if len(parts) == 2 and parts[1]:
             user_key, field = unquote(parts[0]), unquote(parts[1])
-            if user_key in profiles and field in profiles[user_key]:
-                del profiles[user_key][field]
-                profiles[user_key]["_last_updated"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            if field.startswith("_") and field != "_starred":
+                return self._json({"error": f"不允许直接删除内部字段 {field}"}, 400)
+            if _delete_profile_field(profiles, user_key, field):
                 save_profiles(profiles)
                 return self._json({"success": True, "message": f"已删除 {field}"})
             return self._json({"error": "未找到"}, 404)
