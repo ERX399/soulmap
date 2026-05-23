@@ -353,12 +353,9 @@ function sortProfileKeys(keys) {
 return (keys || []).slice().sort((a, b) => {
 const pa = currentProfiles[a] || {};
 const pb = currentProfiles[b] || {};
-const pinA = isStarred(a) ? 0 : 1;
-const pinB = isStarred(b) ? 0 : 1;
-if (pinA !== pinB) return pinA - pinB;
-const platA = pa._platform ? 0 : 1;
-const platB = pb._platform ? 0 : 1;
-if (platA !== platB) return platA - platB;
+const scoreA = (isStarred(a) ? 4 : 0) + (pa._platform ? 2 : 0);
+const scoreB = (isStarred(b) ? 4 : 0) + (pb._platform ? 2 : 0);
+if (scoreA !== scoreB) return scoreB - scoreA;
 const na = profileDisplayName(a, pa);
 const nb = profileDisplayName(b, pb);
 const cmp = compareSmart(na, nb);

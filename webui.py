@@ -264,6 +264,7 @@ def sort_profile_keys(keys: list, profiles: dict) -> list:
     return sorted(
         list(keys or []),
         key=lambda k: (
+            -(1 if isinstance(profiles.get(k), dict) and profiles[k].get("_platform") else 0),
             _sort_text_rank(_profile_display_name(k, profiles.get(k, {}))),
             _profile_display_name(k, profiles.get(k, {})).lower(),
             -_safe_time_score(profiles.get(k, {}).get("_last_updated", "") if isinstance(profiles.get(k), dict) else ""),
