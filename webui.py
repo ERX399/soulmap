@@ -264,9 +264,9 @@ def sort_profile_keys(keys: list, profiles: dict) -> list:
     return sorted(
         list(keys or []),
         key=lambda k: (
+            0 if (isinstance(profiles.get(k), dict) and profiles[k].get("_starred")) else 1,
             _sort_text_rank(_profile_display_name(k, profiles.get(k, {}))),
             _profile_display_name(k, profiles.get(k, {})).lower(),
-            0 if (isinstance(profiles.get(k), dict) and profiles[k].get("_starred")) else 1,
             -_safe_time_score(profiles.get(k, {}).get("_last_updated", "") if isinstance(profiles.get(k), dict) else ""),
         )
     )
