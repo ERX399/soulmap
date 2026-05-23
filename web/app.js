@@ -341,16 +341,27 @@ return name && name !== key ? `${key}${time ? ' · ' + time : ''}` : time;
 }
 
 function isStarred(key) {
-try { return (JSON.parse(localStorage.getItem('soulmap_starred') || '[]')).includes(key); }
-catch(_) { return false; }
+const p = currentProfiles[key];
+return !!(p && p._starred);
 }
-function toggleStar(key) {
+async function toggleStar(key) {
+const p = currentProfiles[key];
+const isStarred = p && p._starred;
 try {
-let arr = JSON.parse(localStorage.getItem('soulmap_starred') || '[]');
-const i = arr.indexOf(key);
-if (i >= 0) arr.splice(i, 1); else arr.push(key);
-localStorage.setItem('soulmap_starred', JSON.stringify(arr));
-} catch(_) {}
+const d = await apiJson(apiUrl(`/api/profile/${enc(key)}`), {
+method: 'PUT',
+headers: { 'Content-Type': 'application/json' },
+body: JSON.stringify({ field: '_starred', value: isStarred ? '' : 'true' })
+});
+if (d.success) {
+// 如果取消星标，删除字段；如果加星标，已写入
+if (isStarred) {
+await apiJson(apiUrl(`/api/profile/${enc(key)}/_starred`), { method: 'DELETE' });
+}
+statsCache = null;
+await refreshData();
+}
+} catch(e) { snk(e.message || '操作失败'); }
 }
 function sortProfileKeys(keys) {
 return (keys || []).slice().sort((a, b) => {
@@ -360,22 +371,18 @@ const na = profileDisplayName(a, pa);
 const nb = profileDisplayName(b, pb);
 const ta = String(pa._last_updated || '');
 const tb = String(pb._last_updated || '');
+// 1. 星标优先
+const starA = pa._starred ? 0 : 1;
+const starB = pb._starred ? 0 : 1;
+if (starA !== starB) return starA - starB;
+// 2. 名称分组: a-z > 中文 > 数字
 const ra = textRank(na);
 const rb = textRank(nb);
-// 1. 名称分组: a-z > 中文 > 数字
 if (ra !== rb) return ra - rb;
-// 2. 同组: 有平台优先
-const platA = pa._platform ? 0 : 1;
-const platB = pb._platform ? 0 : 1;
-if (platA !== platB) return platA - platB;
-// 3. 同平台: 星标优先
-const starA = isStarred(a) ? 0 : 1;
-const starB = isStarred(b) ? 0 : 1;
-if (starA !== starB) return starA - starB;
-// 4. 名称排序
+// 3. 名称排序
 const cmp = na.localeCompare(nb, 'zh-CN', {sensitivity:'base'});
 if (cmp !== 0) return cmp;
-// 5. 更新时间倒序
+// 4. 更新时间倒序
 return tb.localeCompare(ta);
 });
 }
