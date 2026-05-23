@@ -410,8 +410,6 @@ class SoulMapWebServer:
 
     async def handle_profiles(self, request):
         params = request.rel_url.query
-        page = max(1, int(params.get("page", "1") or 1))
-        size = max(1, min(int(params.get("size", "20") or 20), 100))
         q = params.get("q", "").lower().strip()
         profiles = cache.get_data()
         fields = get_all_fields(profiles)
@@ -422,13 +420,7 @@ class SoulMapWebServer:
         profiles = merge_platforms(profiles, keys)
         keys = sort_profile_keys(keys, profiles)
         total = len(keys)
-        if total <= 100:
-            return self._json({"profiles": {k: profiles[k] for k in keys}, "fields": fields, "pagination": {"page": 1, "size": total, "total": total, "total_pages": 1}})
-        total_pages = max(1, (total + size - 1) // size)
-        page = max(1, min(page, total_pages))
-        page_keys = keys[(page - 1) * size:(page - 1) * size + size]
-        page_profiles = {k: profiles[k] for k in page_keys}
-        return self._json({"profiles": page_profiles, "fields": fields, "pagination": {"page": page, "size": size, "total": total, "total_pages": total_pages}})
+        return self._json({"profiles": {k: profiles[k] for k in keys}, "fields": fields, "pagination": {"page": 1, "size": total, "total": total, "total_pages": 1}})
 
     async def handle_batch_delete(self, request):
         body = await self._read_json(request)
