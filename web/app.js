@@ -1,5 +1,4 @@
-// SoulMap WebUI - 优化版：分页、防抖搜索、无限滚动
-const PAGE_SIZE = 20;
+// SoulMap WebUI - 优化版：防抖搜索、特殊排序、本地缓存
 let allFields = [];
 let currentPage = 1;
 let totalPages = 1;
@@ -33,7 +32,6 @@ document.addEventListener('DOMContentLoaded', () => {
   if (ovStats) ovStats.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:24px;color:var(--outline)">加载中…</div>';
   if (ovRecent) ovRecent.innerHTML = '<div style="text-align:center;padding:24px;color:var(--outline)">加载中…</div>';
   loadPage(1);
-  setupInfiniteScroll();
 });
 
 // ===== 防抖 =====
@@ -210,30 +208,6 @@ async function refreshData() {
   snk('已刷新');
 }
 
-// ===== 无限滚动 =====
-function setupInfiniteScroll() {
-  let ticking = false;
-  const trigger = () => {
-    if (ticking) return;
-    ticking = true;
-    requestAnimationFrame(() => {
-      ticking = false;
-      const active = document.querySelector('.tab.active');
-      if (!active || active.dataset.tab !== 'users') return;
-      if (isLoading || currentPage >= totalPages || totalUsers <= 100) return;
-      const scrollBottom = window.innerHeight + window.scrollY;
-      const docHeight = document.documentElement.scrollHeight;
-      // 提前 300px 触发，适配底部导航栏遮挡
-      if (scrollBottom >= docHeight - 300) {
-        loadPage(currentPage + 1);
-      }
-    });
-  };
-  window.addEventListener('scroll', trigger, { passive: true });
-  // 触摸端额外监听 touchmove 确保流畅
-  window.addEventListener('touchmove', trigger, { passive: true });
-}
-
 // ===== 标签切换 =====
 function switchTab(t) {
   document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
@@ -292,21 +266,18 @@ async function renderOV(withStats) {
 }
 
 // ===== 用户列表 =====
-function renderUL(pageData, isFirst) {
+function renderUL(pageData) {
   const el = document.getElementById('ulist');
   const keys = sortProfileKeys(currentProfileKeys.length ? currentProfileKeys : Object.keys(pageData || {}));
-  // 仅第一页或主动切换时重置内容，去除重复追加导致元素多次出现
-  const resetContent = isFirst || !el.innerHTML.includes('class="card"');
-  if (resetContent) {
-    el.innerHTML = renderCards(keys);
-  } else {
-    el.insertAdjacentHTML('beforeend', renderCards(keys));
-  }
+  // 当前接口一次返回完整列表，统一重绘可避免旧分页追加导致重复卡片。
+  el.innerHTML = renderCards(keys);
   updatePagInfo();
   if (!Object.keys(currentProfiles).length) {
     renderEmptyUsers(el);
   }
 }
+
+
 
 async function renderEmptyUsers(el) {
   const dbg = await loadDebug();
@@ -329,12 +300,10 @@ function updatePagInfo() {
     el.insertAdjacentHTML('afterend', '<div id="pag-info" style="text-align:center;padding:16px;font-size:12px;color:var(--outline)"></div>');
     info = document.getElementById('pag-info');
   }
-  if (totalUsers <= 100 || currentPage >= totalPages) {
-    info.textContent = `共 ${totalUsers} 位用户`;
-  } else {
-    info.textContent = `已加载 ${Object.keys(currentProfiles).length} / ${totalUsers}，下滑加载更多`;
-  }
+  info.textContent = `共 ${totalUsers || Object.keys(currentProfiles).length} 位用户`;
 }
+
+
 
 function platformLabel(raw) {
 const p = String(raw || '').toLowerCase().trim();
@@ -420,14 +389,9 @@ return ka.key.localeCompare(kb.key, 'zh-CN', { sensitivity: 'base', numeric: tru
 });
 }
 
-function compareSmart(a, b) {
-const sa = String(a || '').trim();
-const sb = String(b || '').trim();
-const ra = textRank(sa);
-const rb = textRank(sb);
-if (ra !== rb) return ra - rb;
-return sa.localeCompare(sb, 'zh-CN', { sensitivity: 'base', numeric: true });
-}
+
+
+
 
 function textRank(s) {
 const text = String(s || '').trim();
