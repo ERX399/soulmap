@@ -61,6 +61,7 @@ function saveLocalCache(data) {
     localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify({
       time: Date.now(),
       profiles: mergedProfiles,
+      profile_keys: data.profile_keys || old.profile_keys || Object.keys(mergedProfiles),
       fields: data.fields || old.fields || allFields,
       pagination: data.pagination || old.pagination || {}
     }));
@@ -85,6 +86,7 @@ function applyLocalCache() {
   }
   allFields = c.fields || allFields;
   currentProfiles = c.profiles || {};
+  currentProfileKeys = sortProfileKeys(c.profile_keys || Object.keys(currentProfiles));
   const pag = c.pagination || {};
   totalUsers = pag.total || Object.keys(currentProfiles).length;
   totalPages = pag.total_pages || 1;
@@ -141,8 +143,8 @@ async function loadPage(page) {
     }
     // 合并到当前数据
     Object.assign(currentProfiles, data.profiles || {});
-    // 保存服务端返回的排序顺序
-    currentProfileKeys = data.profile_keys || Object.keys(data.profiles || {});
+    // 保存服务端返回的排序顺序，并用前端同款特殊排序兜底，避免缓存/旧后端导致乱序
+    currentProfileKeys = sortProfileKeys(data.profile_keys || Object.keys(data.profiles || {}));
     renderCurrentTab(currentProfiles, true);
   } catch (e) {
     uiLog('error', '画像页加载失败', { page, error: e && e.message ? e.message : String(e), costMs: Date.now() - started });
@@ -258,8 +260,8 @@ async function renderOV(withStats) {
     <div class="stat-card"><div class="v">${fieldsCount}</div><div class="l">可用字段</div></div>
     <div class="stat-card"><div class="v">${avg}</div><div class="l">平均字段</div></div>`;
 
-  // 最近更新（取已加载数据的前6个，已按时间排序）
-  const keys = (currentProfileKeys.length ? currentProfileKeys : Object.keys(currentProfiles)).slice(0, 6);
+  // 取特殊排序后的前 6 个，星标会优先展示
+  const keys = sortProfileKeys(currentProfileKeys.length ? currentProfileKeys : Object.keys(currentProfiles)).slice(0, 6);
   const recent = document.getElementById('ov-recent');
   if (keys.length) {
     recent.innerHTML = renderCards(keys);
@@ -276,7 +278,7 @@ async function renderOV(withStats) {
 // ===== 用户列表 =====
 function renderUL(pageData, isFirst) {
   const el = document.getElementById('ulist');
-  const keys = (currentProfileKeys.length ? currentProfileKeys : Object.keys(pageData || {}));
+  const keys = sortProfileKeys(currentProfileKeys.length ? currentProfileKeys : Object.keys(pageData || {}));
   // 仅第一页或主动切换时重置内容，去除重复追加导致元素多次出现
   const resetContent = isFirst || !el.innerHTML.includes('class="card"');
   if (resetContent) {
@@ -364,27 +366,41 @@ await refreshData();
 }
 } catch(e) { snk(e.message || '操作失败'); }
 }
+function hasProfileName(profile) {
+return !!String((profile || {})['对用户的称呼'] || '').trim();
+}
+
+function profileSortKey(key) {
+const p = currentProfiles[key] || {};
+const name = profileDisplayName(key, p);
+return {
+star: p._starred ? 0 : 1,
+named: hasProfileName(p) ? 0 : 1,
+rank: textRank(name),
+name,
+time: String(p._last_updated || ''),
+key: String(key || '')
+};
+}
+
 function sortProfileKeys(keys) {
 return (keys || []).slice().sort((a, b) => {
-const pa = currentProfiles[a] || {};
-const pb = currentProfiles[b] || {};
-const na = profileDisplayName(a, pa);
-const nb = profileDisplayName(b, pb);
-const ta = String(pa._last_updated || '');
-const tb = String(pb._last_updated || '');
+const ka = profileSortKey(a);
+const kb = profileSortKey(b);
 // 1. 星标优先
-const starA = pa._starred ? 0 : 1;
-const starB = pb._starred ? 0 : 1;
-if (starA !== starB) return starA - starB;
-// 2. 名称分组: a-z > 中文 > 数字
-const ra = textRank(na);
-const rb = textRank(nb);
-if (ra !== rb) return ra - rb;
-// 3. 名称排序
-const cmp = na.localeCompare(nb, 'zh-CN', {sensitivity:'base'});
+if (ka.star !== kb.star) return ka.star - kb.star;
+// 2. 有称呼优先，避免纯ID夹在命名用户中间
+if (ka.named !== kb.named) return ka.named - kb.named;
+// 3. 特殊分组：英文 -> 中文 -> 数字 -> 其他 -> 空
+if (ka.rank !== kb.rank) return ka.rank - kb.rank;
+// 4. 名称本地化排序
+const cmp = ka.name.localeCompare(kb.name, 'zh-CN', { sensitivity: 'base', numeric: true });
 if (cmp !== 0) return cmp;
-// 4. 更新时间倒序
-return tb.localeCompare(ta);
+// 5. 更新时间倒序
+const timeCmp = kb.time.localeCompare(ka.time);
+if (timeCmp !== 0) return timeCmp;
+// 6. key 兜底，确保稳定
+return ka.key.localeCompare(kb.key, 'zh-CN', { sensitivity: 'base', numeric: true });
 });
 }
 
@@ -394,16 +410,17 @@ const sb = String(b || '').trim();
 const ra = textRank(sa);
 const rb = textRank(sb);
 if (ra !== rb) return ra - rb;
-return sa.localeCompare(sb, 'zh-CN', {sensitivity:'base'});
+return sa.localeCompare(sb, 'zh-CN', { sensitivity: 'base', numeric: true });
 }
 
 function textRank(s) {
-if (!s) return 3;
-const ch = s[0];
+const text = String(s || '').trim();
+if (!text) return 4;
+const ch = text[0];
 if (/[a-zA-Z]/.test(ch)) return 0;
 if (/[一-鿿]/.test(ch)) return 1;
 if (/[0-9]/.test(ch)) return 2;
-return 1;
+return 3;
 }
 
 function renderCards(keys) {

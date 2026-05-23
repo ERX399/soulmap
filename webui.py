@@ -263,38 +263,50 @@ def _safe_time_score(value: str) -> int:
         return 0
 
 
+def _profile_name(profile: dict) -> str:
+    if not isinstance(profile, dict):
+        return ""
+    return str(profile.get("对用户的称呼") or "").strip()
+
+
 def _sort_text_rank(value: str) -> int:
+    """特殊排序分组：英文 -> 中文 -> 数字 -> 其他 -> 空。"""
     text = str(value or "").strip()
     if not text:
-        return 3
+        return 4
     ch = text[0]
-    if ch.isalpha() and ch.isascii():
-        return 0  # a-z 最前
+    if ch.isascii() and ch.isalpha():
+        return 0
     if "\u4e00" <= ch <= "\u9fff":
-        return 1  # 中文次之
+        return 1
     if ch.isdigit():
-        return 2  # 数字最后
-    return 1
+        return 2
+    return 3
 
 
 def _profile_display_name(key: str, profile: dict) -> str:
-    if isinstance(profile, dict):
-        name = str(profile.get("对用户的称呼") or "").strip()
-        if name:
-            return name
-    return str(key or "")
+    return _profile_name(profile) or str(key or "")
+
+
+def _has_profile_name(profile: dict) -> int:
+    return 0 if _profile_name(profile) else 1
+
+
+def _profile_sort_key(key: str, profiles: dict) -> tuple:
+    profile = profiles.get(key, {}) if isinstance(profiles, dict) else {}
+    name = _profile_display_name(key, profile)
+    return (
+        0 if (isinstance(profile, dict) and profile.get("_starred")) else 1,
+        _has_profile_name(profile),
+        _sort_text_rank(name),
+        name.casefold(),
+        -_safe_time_score(profile.get("_last_updated", "") if isinstance(profile, dict) else ""),
+        str(key or "").casefold(),
+    )
 
 
 def sort_profile_keys(keys: list, profiles: dict) -> list:
-    return sorted(
-        list(keys or []),
-        key=lambda k: (
-            0 if (isinstance(profiles.get(k), dict) and profiles[k].get("_starred")) else 1,
-            _sort_text_rank(_profile_display_name(k, profiles.get(k, {}))),
-            _profile_display_name(k, profiles.get(k, {})).lower(),
-            -_safe_time_score(profiles.get(k, {}).get("_last_updated", "") if isinstance(profiles.get(k), dict) else ""),
-        )
-    )
+    return sorted(list(keys or []), key=lambda k: _profile_sort_key(str(k), profiles))
 
 
 
