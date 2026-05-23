@@ -266,7 +266,7 @@ def sort_profile_keys(keys: list, profiles: dict) -> list:
         key=lambda k: (
             _sort_text_rank(_profile_display_name(k, profiles.get(k, {}))),
             _profile_display_name(k, profiles.get(k, {})).lower(),
-            0 if (isinstance(profiles.get(k), dict) and profiles[k].get("_platform")) else 1,
+            0 if (isinstance(profiles.get(k), dict) and profiles[k].get("_starred")) else 1,
             -_safe_time_score(profiles.get(k, {}).get("_last_updated", "") if isinstance(profiles.get(k), dict) else ""),
         )
     )
@@ -547,10 +547,28 @@ class SoulMapWebServer:
         body = await self._read_json(request)
         field = str(body.get("field", "")).strip()
         value = str(body.get("value", "")).strip()
-        if not user_key or not field or not value:
-            return self._json({"error": "user_key、field 和 value 不能为空"}, 400)
+        if not user_key or not field:
+            return self._json({"error": "user_key 和 field 不能为空"}, 400)
+        # 元字段（以 _ 开头）可直接写入，允许空值（用于星标取消等操作）
+        if field.startswith("_"):
+            profiles = cache.get_data()
+            if value:
+                if user_key in profiles and isinstance(profiles[user_key], dict):
+                    profiles[user_key][field] = value
+                    profiles[user_key]["_last_updated"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                else:
+                    profiles[user_key] = {field: value, "_last_updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+                save_profiles(profiles)
+            else:
+                # 空值表示删除该元字段
+                if user_key in profiles and isinstance(profiles[user_key], dict) and field in profiles[user_key]:
+                    del profiles[user_key][field]
+                    profiles[user_key]["_last_updated"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    save_profiles(profiles)
+            return self._json({"success": True, "message": f"已更新元字段 {field}"})
+        if not value:
+            return self._json({"error": "value 不能为空"}, 400)
         profiles = cache.get_data()
-        # 浅拷贝单个用户，避免深拷贝整个 profiles
         if user_key in profiles and isinstance(profiles[user_key], dict):
             profiles[user_key][field] = value
             profiles[user_key]["_last_updated"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
