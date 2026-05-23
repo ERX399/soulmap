@@ -53,19 +53,35 @@ function filterUsers() {
   doSearch(document.getElementById('q').value.trim());
 }
 
+function mergeProfileKeys(oldKeys, newKeys, mergedProfiles) {
+  const seen = new Set();
+  const result = [];
+  const add = (key) => {
+    const k = String(key || '').trim();
+    if (!k || seen.has(k) || !mergedProfiles[k]) return;
+    seen.add(k);
+    result.push(k);
+  };
+  (oldKeys || []).forEach(add);
+  (newKeys || []).forEach(add);
+  Object.keys(mergedProfiles || {}).forEach(add);
+  return sortProfileKeys(result);
+}
+
 function saveLocalCache(data) {
   try {
     if (!data || !data.profiles || !Object.keys(data.profiles).length) return;
     const old = loadLocalCache() || {};
     const mergedProfiles = Object.assign({}, old.profiles || {}, data.profiles || {});
+    const mergedKeys = mergeProfileKeys(old.profile_keys, data.profile_keys, mergedProfiles);
     localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify({
       time: Date.now(),
       profiles: mergedProfiles,
-      profile_keys: data.profile_keys || old.profile_keys || Object.keys(mergedProfiles),
+      profile_keys: mergedKeys,
       fields: data.fields || old.fields || allFields,
       pagination: data.pagination || old.pagination || {}
     }));
-    uiLog('debug', '已写入本地缓存', { mergedUsers: Object.keys(mergedProfiles).length });
+    uiLog('debug', '已写入本地缓存', { mergedUsers: Object.keys(mergedProfiles).length, mergedKeys: mergedKeys.length });
   } catch (e) {
     uiLog('warn', '写入本地缓存失败', e);
   }
@@ -437,7 +453,7 @@ const chips = fs.slice(0, 4).map(f => `<span class="chip">${esc(f)}</span>`).joi
 const more = fs.length > 4 ? `<span class="chip">+${fs.length - 4}</span>` : '';
 const checked = selectedCards.has(k) ? 'checked' : '';
 const starred = isStarred(k);
-const pinBtn = `<button class="star-btn ${starred ? 'starred' : ''}" onclick="event.stopPropagation(); toggleStar(${jsArg(k)}); renderUL(currentProfiles, true)" title="${starred ? '取消星标' : '星标'}">⭐</button>`;
+const pinBtn = `<button class="star-btn ${starred ? 'starred' : ''}" onclick="event.stopPropagation(); toggleStar(${jsArg(k)})" title="${starred ? '取消星标' : '星标'}">⭐</button>`;
 return `<div class="card" onclick="handleCardClick(event, ${jsArg(k)})"><input class="select-box" type="checkbox" ${checked} onclick="toggleCardSelected(event, ${jsArg(k)})">${platformBadge}${pinBtn}<div class="card-top"><div class="card-info"><div class="card-name">${esc(name)}</div><div class="card-sub">${esc(subTitle)}</div></div></div><div class="chips">${chips}${more}</div></div>`;
 }).join('');
 }
