@@ -353,13 +353,20 @@ function sortProfileKeys(keys) {
 return (keys || []).slice().sort((a, b) => {
 const pa = currentProfiles[a] || {};
 const pb = currentProfiles[b] || {};
-const scoreA = (isStarred(a) ? 4 : 0) + (pa._platform ? 2 : 0);
-const scoreB = (isStarred(b) ? 4 : 0) + (pb._platform ? 2 : 0);
-if (scoreA !== scoreB) return scoreB - scoreA;
 const na = profileDisplayName(a, pa);
 const nb = profileDisplayName(b, pb);
+// 1. 名称排序: a-z > 中文 > 数字
 const cmp = compareSmart(na, nb);
 if (cmp !== 0) return cmp;
+// 2. 同名: 有平台优先
+const platA = pa._platform ? 0 : 1;
+const platB = pb._platform ? 0 : 1;
+if (platA !== platB) return platA - platB;
+// 3. 同名同平台: 星标优先
+const starA = isStarred(a) ? 0 : 1;
+const starB = isStarred(b) ? 0 : 1;
+if (starA !== starB) return starA - starB;
+// 4. 更新时间倒序
 const ta = String(pa._last_updated || '');
 const tb = String(pb._last_updated || '');
 return tb.localeCompare(ta);
@@ -372,7 +379,7 @@ const sb = String(b || '').trim();
 const ra = textRank(sa);
 const rb = textRank(sb);
 if (ra !== rb) return ra - rb;
-return sa.localeCompare(sb, 'zh');
+return sa.localeCompare(sb, 'zh-CN', {sensitivity:'base'});
 }
 
 function textRank(s) {
