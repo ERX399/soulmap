@@ -288,17 +288,18 @@ body {
   top: 8px;
   right: 44px;
   z-index: 2;
-  display: none;
+  display: block;
   background: transparent;
   border: none;
-  font-size: 14px;
+  font-size: 16px;
   cursor: pointer;
-  opacity: 0.4;
+  opacity: 0.55;
   padding: 2px;
   line-height: 1;
+  color: var(--outline);
 }
-.star-btn.starred { opacity: 1; display: block; }
-.card:hover .star-btn { display: block; }
+.star-btn.starred { opacity: 1; color: #f5b301; }
+.star-btn:hover { opacity: 1; transform: scale(1.08); }
 
 
 
