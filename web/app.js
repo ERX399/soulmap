@@ -361,9 +361,7 @@ const name = profileDisplayName(key, p);
 return {
 star: p._starred ? 0 : 1,
 named: hasProfileName(p) ? 0 : 1,
-rank: textRank(name),
 name,
-time: String(p._last_updated || ''),
 key: String(key || '')
 };
 }
@@ -376,15 +374,10 @@ const kb = profileSortKey(b);
 if (ka.star !== kb.star) return ka.star - kb.star;
 // 2. 有称呼优先，避免纯ID夹在命名用户中间
 if (ka.named !== kb.named) return ka.named - kb.named;
-// 3. 特殊分组：英文 -> 中文 -> 数字 -> 其他 -> 空
-if (ka.rank !== kb.rank) return ka.rank - kb.rank;
-// 4. 名称本地化排序
+// 3. 名称按 zh-CN 本地化规则混排中英文/拼音
 const cmp = ka.name.localeCompare(kb.name, 'zh-CN', { sensitivity: 'base', numeric: true });
 if (cmp !== 0) return cmp;
-// 5. 更新时间倒序
-const timeCmp = kb.time.localeCompare(ka.time);
-if (timeCmp !== 0) return timeCmp;
-// 6. key 兜底，确保稳定
+// 4. key 兜底，确保稳定
 return ka.key.localeCompare(kb.key, 'zh-CN', { sensitivity: 'base', numeric: true });
 });
 }
@@ -417,7 +410,8 @@ const chips = fs.slice(0, 4).map(f => `<span class="chip">${esc(f)}</span>`).joi
 const more = fs.length > 4 ? `<span class="chip">+${fs.length - 4}</span>` : '';
 const checked = selectedCards.has(k) ? 'checked' : '';
 const starred = isStarred(k);
-const pinBtn = `<button class="star-btn ${starred ? 'starred' : ''}" onclick="event.stopPropagation(); toggleStar(${jsArg(k)})" title="${starred ? '取消星标' : '星标'}">⭐</button>`;
+const starIcon = starred ? '★' : '☆';
+const pinBtn = `<button class="star-btn ${starred ? 'starred' : ''}" onclick="event.stopPropagation(); toggleStar(${jsArg(k)})" title="${starred ? '取消星标' : '添加星标'}" aria-label="${starred ? '取消星标' : '添加星标'}">${starIcon}</button>`;
 return `<div class="card" onclick="handleCardClick(event, ${jsArg(k)})"><input class="select-box" type="checkbox" ${checked} onclick="toggleCardSelected(event, ${jsArg(k)})">${platformBadge}${pinBtn}<div class="card-top"><div class="card-info"><div class="card-name">${esc(name)}</div><div class="card-sub">${esc(subTitle)}</div></div></div><div class="chips">${chips}${more}</div></div>`;
 }).join('');
 }
