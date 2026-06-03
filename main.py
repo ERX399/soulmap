@@ -117,37 +117,92 @@ class SoulMapManager:
             return None
 
     def _ordered_profile(self, profile: Dict[str, Any]) -> Dict[str, Any]:
-        """按字段配置顺序整理单个画像，元信息统一放末尾。"""
+        """
+        按统一规则整理单个画像字段顺序：
+        1. allowed_fields 配置顺序
+        2. 自定义字段名称排序
+        3. _starred / _platform / _last_updated
+        4. 其他元字段名称排序
+        """
         if not isinstance(profile, dict):
             return profile
+
         ordered = {}
         for field in self.allowed_fields:
             if field in profile:
                 ordered[field] = profile[field]
+
         custom_fields = sorted(k for k in profile if k not in ordered and not str(k).startswith("_"))
         for field in custom_fields:
             ordered[field] = profile[field]
-        meta_fields = sorted(k for k in profile if str(k).startswith("_"))
-        meta_fields = [k for k in meta_fields if k not in {"_platform", "_last_updated"}] + [k for k in ("_platform", "_last_updated") if k in profile]
-        for field in meta_fields:
+
+        preferred_meta = ["_starred", "_platform", "_last_updated"]
+        for field in preferred_meta:
+            if field in profile:
+                ordered[field] = profile[field]
+
+        other_meta_fields = sorted(
+            k for k in profile
+            if str(k).startswith("_") and k not in preferred_meta
+        )
+        for field in other_meta_fields:
             ordered[field] = profile[field]
+
         return ordered
 
+    def _sort_text_rank(self, value: str) -> int:
+        """特殊排序分组：英文 -> 中文 -> 数字 -> 其他 -> 空。"""
+        text = str(value or "").strip()
+        if not text:
+            return 4
+        ch = text[0]
+        if ch.isascii() and ch.isalpha():
+            return 0
+        if "\u4e00" <= ch <= "\u9fff":
+            return 1
+        if ch.isdigit():
+            return 2
+        return 3
+
+    def _profile_name_for_sort(self, key: str, profile: Dict[str, Any]) -> str:
+        """排序显示名：优先使用画像称呼，没有称呼时使用 user_key。"""
+        if isinstance(profile, dict):
+            name = str(profile.get("对用户的称呼") or "").strip()
+            if name:
+                return name
+        return str(key or "")
+
+    def _profile_sort_key(self, key: str, profile: Dict[str, Any]) -> tuple:
+        """
+        统一用户排序规则 A：
+        1. 星标置顶
+        2. 有称呼的用户优先
+        3. 显示名自然排序
+        4. user_key 兜底稳定排序
+
+        不使用 _last_updated 排序；最近更新交给专门页面处理。
+        """
+        name = self._profile_name_for_sort(key, profile)
+        has_name_rank = 0 if (isinstance(profile, dict) and str(profile.get("对用户的称呼") or "").strip()) else 1
+        return (
+            0 if (isinstance(profile, dict) and profile.get("_starred")) else 1,
+            has_name_rank,
+            self._sort_text_rank(name),
+            name.casefold(),
+            str(key or "").casefold(),
+        )
+
     def _normalize_data_order(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """整理顶层用户顺序和画像字段顺序。"""
+        """按统一规则整理顶层用户顺序和画像字段顺序。"""
         if not isinstance(data, dict):
             return data
-        with_time = []
-        without_time = []
-        for k, v in data.items():
-            if isinstance(v, dict) and v.get("_last_updated"):
-                with_time.append((k, v))
-            else:
-                without_time.append((k, v))
-        with_time.sort(key=lambda item: str(item[1].get("_last_updated", "")), reverse=True)
-        without_time.sort(key=lambda item: str(item[0]))
+
+        items = sorted(
+            data.items(),
+            key=lambda item: self._profile_sort_key(str(item[0]), item[1] if isinstance(item[1], dict) else {})
+        )
         ordered = {}
-        for k, v in with_time + without_time:
+        for k, v in items:
             ordered[k] = self._ordered_profile(v) if isinstance(v, dict) else v
         return ordered
 
@@ -424,10 +479,10 @@ class SoulMapManager:
             return
         path = self.data_path / "user_platform.json"
         try:
+            # 平台文件使用 user_key 稳定排序；最近更新时间不参与全局排序。
             data = dict(sorted(
                 self.platform_data.items(),
-                key=lambda item: str(item[1].get("last_updated", "")) if isinstance(item[1], dict) else "",
-                reverse=True
+                key=lambda item: str(item[0] or "").casefold()
             ))
             tmp_path = path.with_suffix(".json.tmp")
             with open(tmp_path, "w", encoding="utf-8") as f:
