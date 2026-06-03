@@ -410,7 +410,7 @@ const chips = fs.slice(0, 4).map(f => `<span class="chip">${esc(f)}</span>`).joi
 const more = fs.length > 4 ? `<span class="chip">+${fs.length - 4}</span>` : '';
 const checked = selectedCards.has(k) ? 'checked' : '';
 const starred = isStarred(k);
-const starIcon = starred ? '★' : '☆';
+const starIcon = '⭐';
 const pinBtn = `<button class="star-btn ${starred ? 'starred' : ''}" onclick="event.stopPropagation(); toggleStar(${jsArg(k)})" title="${starred ? '取消星标' : '添加星标'}" aria-label="${starred ? '取消星标' : '添加星标'}">${starIcon}</button>`;
 return `<div class="card" onclick="handleCardClick(event, ${jsArg(k)})"><input class="select-box" type="checkbox" ${checked} onclick="toggleCardSelected(event, ${jsArg(k)})">${platformBadge}${pinBtn}<div class="card-top"><div class="card-info"><div class="card-name">${esc(name)}</div><div class="card-sub">${esc(subTitle)}</div></div></div><div class="chips">${chips}${more}</div></div>`;
 }).join('');
