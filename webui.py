@@ -293,6 +293,15 @@ def _has_profile_name(profile: dict) -> int:
 
 
 def _profile_sort_key(key: str, profiles: dict) -> tuple:
+    """
+    WebUI 用户列表排序：
+    1. 星标置顶
+    2. 有称呼的用户优先
+    3. 名称自然排序
+    4. user_key 兜底稳定排序
+
+    不使用 _last_updated 排序，避免列表因画像更新频繁跳动。
+    """
     profile = profiles.get(key, {}) if isinstance(profiles, dict) else {}
     name = _profile_display_name(key, profile)
     return (
@@ -300,7 +309,6 @@ def _profile_sort_key(key: str, profiles: dict) -> tuple:
         _has_profile_name(profile),
         _sort_text_rank(name),
         name.casefold(),
-        -_safe_time_score(profile.get("_last_updated", "") if isinstance(profile, dict) else ""),
         str(key or "").casefold(),
     )
 
