@@ -150,19 +150,20 @@ class SoulMapManager:
 
         return ordered
 
-    def _sort_text_rank(self, value: str) -> int:
-        """特殊排序分组：英文 -> 中文 -> 数字 -> 其他 -> 空。"""
+    def _sort_text_key(self, value: str) -> str:
+        """
+        名称排序 key：中文转拼音后与英文混排。
+        例如：Alice、阿明(aming)、Bob、陈七(chenqi) 会自然穿插。
+        如果运行环境没有 pypinyin，则回退到原字符串，不影响插件启动。
+        """
         text = str(value or "").strip()
         if not text:
-            return 4
-        ch = text[0]
-        if ch.isascii() and ch.isalpha():
-            return 0
-        if "\u4e00" <= ch <= "\u9fff":
-            return 1
-        if ch.isdigit():
-            return 2
-        return 3
+            return "~"
+        try:
+            from pypinyin import lazy_pinyin
+            return "".join(lazy_pinyin(text)).casefold()
+        except Exception:
+            return text.casefold()
 
     def _profile_name_for_sort(self, key: str, profile: Dict[str, Any]) -> str:
         """排序显示名：优先使用画像称呼，没有称呼时使用 user_key。"""
@@ -177,7 +178,7 @@ class SoulMapManager:
         统一用户排序规则 A：
         1. 星标置顶
         2. 有称呼的用户优先
-        3. 显示名自然排序
+        3. 显示名按拼音/英文混排
         4. user_key 兜底稳定排序
 
         不使用 _last_updated 排序；最近更新交给专门页面处理。
@@ -187,8 +188,8 @@ class SoulMapManager:
         return (
             0 if (isinstance(profile, dict) and profile.get("_starred")) else 1,
             has_name_rank,
-            self._sort_text_rank(name),
-            name.casefold(),
+            self._sort_text_key(name),
+            self._sort_text_key(key),
             str(key or "").casefold(),
         )
 
