@@ -19,7 +19,6 @@
     </div>
     <button class="login" onclick="login()">登录</button>
     <div class="err" id="e"></div>
-    <div class="hint">密码输入框始终使用浏览器密码模式，不提供前端明文显示。如启用访问密码，请在 AstrBot 插件配置中设置 <code>webui_password</code>。</div>
   </main>
 <script>
 async function login(){const password=document.getElementById('p').value;const e=document.getElementById('e');e.textContent='';const r=await fetch('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password})});if(r.ok){location.href='/'}else{e.textContent='密码错误'}}
