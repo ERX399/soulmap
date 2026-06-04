@@ -355,6 +355,15 @@ function hasProfileName(profile) {
 return !!String((profile || {})['对用户的称呼'] || '').trim();
 }
 
+function pinyinSortKey(s) {
+const text = String(s || '').trim();
+if (!text) return '~';
+if (typeof pinyinPro !== 'undefined' && pinyinPro.pinyin) {
+return pinyinPro.pinyin(text, { toneType: 'none', v: true }).replace(/\s+/g, '').toLowerCase();
+}
+return text.toLowerCase();
+}
+
 function profileSortKey(key) {
 const p = currentProfiles[key] || {};
 const name = profileDisplayName(key, p);
@@ -362,7 +371,9 @@ return {
 star: p._starred ? 0 : 1,
 named: hasProfileName(p) ? 0 : 1,
 name,
-key: String(key || '')
+pName: pinyinSortKey(name),
+key: String(key || ''),
+pKey: pinyinSortKey(key)
 };
 }
 
@@ -374,10 +385,16 @@ const kb = profileSortKey(b);
 if (ka.star !== kb.star) return ka.star - kb.star;
 // 2. 有称呼优先，避免纯ID夹在命名用户中间
 if (ka.named !== kb.named) return ka.named - kb.named;
-// 3. 名称按 zh-CN 本地化规则混排中英文
+// 3. 显示名按拼音混排（pinyin-pro）
+const pCmp = ka.pName.localeCompare(kb.pName);
+if (pCmp !== 0) return pCmp;
+// 4. key 拼音兜底
+const pKeyCmp = ka.pKey.localeCompare(kb.pKey);
+if (pKeyCmp !== 0) return pKeyCmp;
+// 5. 原始名称本地化兜底
 const cmp = ka.name.localeCompare(kb.name, 'zh-CN', { sensitivity: 'base', numeric: true });
 if (cmp !== 0) return cmp;
-// 4. key 兜底，确保稳定
+// 6. 原始 key 稳定兜底
 return ka.key.localeCompare(kb.key, 'zh-CN', { sensitivity: 'base', numeric: true });
 });
 }
