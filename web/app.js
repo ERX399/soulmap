@@ -355,13 +355,44 @@ function hasProfileName(profile) {
 return !!String((profile || {})['对用户的称呼'] || '').trim();
 }
 
+// 本地汉字→拼音映射（常用200字，覆盖常见昵称），无依赖
+const PINYIN_MAP = {
+'阿':'a','啊':'a','爱':'ai','安':'an','昂':'ang','暗':'an',
+'吧':'ba','把':'ba','八':'ba','巴':'ba','白':'bai','百':'bai','半':'ban','帮':'bang','保':'bao','北':'bei','本':'ben','比':'bi','笔':'bi','必':'bi','变':'bian','边':'bian','别':'bie',
+'程':'cheng','吃':'chi','出':'chu','春':'chun','次':'ci','从':'cong','村':'cun','错':'cuo',
+'大':'da','的':'de','等':'deng','得':'de','灯':'deng','点':'dian','电':'dian','定':'ding','东':'dong','冬':'dong','懂':'dong','对':'dui','多':'duo','读':'du',
+'饿':'e','儿':'er','二':'er',
+'发':'fa','法':'fa','反':'fan','范':'fan','方':'fang','放':'fang','非':'fei','飞':'fei','分':'fen','风':'feng','福':'fu','父':'fu','复':'fu',
+'高':'gao','个':'ge','给':'gei','跟':'gen','更':'geng','工':'gong','公':'gong','共':'gong','狗':'gou','古':'gu','故':'gu','关':'guan','管':'guan','光':'guang','广':'guang','国':'guo','果':'guo',
+'还':'hai','害':'hai','汉':'han','好':'hao','号':'hao','喝':'he','黑':'hei','很':'hen','红':'hong','后':'hou','胡':'hu','湖':'hu','护':'hu','花':'hua','化':'hua','画':'hua','话':'hua','坏':'huai','换':'huan','黄':'huang','回':'hui','会':'hui','火':'huo','活':'huo',
+'机':'ji','基':'ji','级':'ji','几':'ji','己':'ji','继':'ji','加':'jia','家':'jia','价':'jia','架':'jia','件':'jian','见':'jian','建':'jian','江':'jiang','讲':'jiang','交':'jiao','角':'jiao','觉':'jue','姐':'jie','今':'jin','金':'jin','尽':'jin','进':'jin','近':'jin','经':'jing','精':'jing','井':'jing','静':'jing','九':'jiu','酒':'jiu','久':'jiu','就':'jiu','居':'ju','局':'ju','举':'ju','巨':'ju','聚':'ju',
+'开':'kai','看':'kan','康':'kang','靠':'kao','可':'ke','刻':'ke','客':'ke','口':'kou','苦':'ku','快':'kuai','宽':'kuan','况':'kuang','亏':'kui','困':'kun',
+'拉':'la','来':'lai','蓝':'lan','浪':'lang','老':'lao','乐':'le','雷':'lei','冷':'leng','离':'li','里':'li','理':'li','礼':'li','力':'li','历':'li','立':'li','连':'lian','联':'lian','脸':'lian','练':'lian','恋':'lian','良':'liang','两':'liang','亮':'liang','量':'liang','林':'lin','领':'ling','另':'ling','留':'liu','流':'liu','六':'liu','龙':'long','楼':'lou','路':'lu','旅':'lv','绿':'lv','乱':'luan','略':'lve',
+'马':'ma','吗':'ma','麦':'mai','满':'man','忙':'mang','毛':'mao','没':'mei','每':'mei','美':'mei','妹':'mei','门':'men','梦':'meng','米':'mi','面':'mian','民':'min','明':'ming','命':'ming','模':'mo','木':'mu','目':'mu',
+'拿':'na','那':'na','娜':'na','男':'nan','南':'nan','呢':'ne','内':'nei','能':'neng','你':'ni','年':'nian','念':'nian','鸟':'niao','牛':'niu','农':'nong','努':'nu','女':'nv','暖':'nuan',
+'怕':'pa','拍':'pai','派':'pai','盘':'pan','朋':'peng','皮':'pi','片':'pian','票':'piao','漂':'piao','品':'pin','平':'ping','普':'pu',
+'七':'qi','期':'qi','其':'qi','奇':'qi','骑':'qi','起':'qi','气':'qi','器':'qi','强':'qiang','墙':'qiang','桥':'qiao','巧':'qiao','青':'qing','清':'qing','轻':'qing','情':'qing','求':'qiu','区':'qu','取':'qu','去':'qu','全':'quan','却':'que','群':'qun',
+'然':'ran','让':'rang','热':'re','任':'ren','日':'ri','容':'rong','肉':'rou','如':'ru','入':'ru',
+'三':'san','色':'se','杀':'sha','沙':'sha','山':'shan','上':'shang','少':'shao','社':'she','身':'shen','深':'shen','什':'shen','生':'sheng','声':'sheng','师':'shi','十':'shi','时':'shi','实':'shi','食':'shi','始':'shi','世':'shi','市':'shi','事':'shi','是':'shi','室':'shi','试':'shi','适':'shi','收':'shou','手':'shou','首':'shou','受':'shou','书':'shu','树':'shu','双':'shuang','水':'shui','睡':'shui','顺':'shun','思':'si','死':'si','四':'si','送':'song','素':'su','速':'su','算':'suan','虽':'sui','岁':'sui','所':'suo',
+'他':'ta','她':'ta','它':'ta','太':'tai','态':'tai','谈':'tan','唐':'tang','糖':'tang','特':'te','疼':'teng','提':'ti','体':'ti','天':'tian','田':'tian','条':'tiao','铁':'tie','听':'ting','停':'ting','通':'tong','同':'tong','头':'tou','图':'tu','团':'tuan','推':'tui','腿':'tui','外':'wai','玩':'wan','完':'wan','晚':'wan','王':'wang','往':'wang','网':'wang','望':'wang','忘':'wang','危':'wei','位':'wei','文':'wen','闻':'wen','问':'wen','我':'wo','握':'wo',
+'西':'xi','息':'xi','希':'xi','吸':'xi','系':'xi','下':'xia','夏':'xia','先':'xian','线':'xian','想':'xiang','向':'xiang','像':'xiang','小':'xiao','校':'xiao','笑':'xiao','些':'xie','写':'xie','谢':'xie','心':'xin','新':'xin','信':'xin','星':'xing','行':'xing','形':'xing','醒':'xing','姓':'xing','休':'xiu','修':'xiu','需':'xu','许':'xu','学':'xue','雪':'xue',
+'牙':'ya','呀':'ya','压':'ya','亚':'ya','言':'yan','研':'yan','眼':'yan','演':'yan','阳':'yang','养':'yang','样':'yang','要':'yao','药':'yao','爷':'ye','也':'ye','夜':'ye','叶':'ye','业':'ye','一':'yi','医':'yi','衣':'yi','以':'yi','已':'yi','意':'yi','易':'yi','因':'yin','音':'yin','银':'yin','印':'yin','英':'ying','影':'ying','用':'yong','优':'you','由':'you','油':'you','游':'you','友':'you','有':'you','又':'you','右':'you','预':'yu','元':'yuan','原':'yuan','圆':'yuan','远':'yuan','院':'yuan','愿':'yuan','月':'yue','越':'yue','云':'yun','运':'yun','在':'zai','早':'zao','怎':'zen','扎':'zha','站':'zhan','张':'zhang','找':'zhao','照':'zhao','者':'zhe','这':'zhe','真':'zhen','正':'zheng','政':'zheng','知':'zhi','之':'zhi','只':'zhi','纸':'zhi','指':'zhi','至':'zhi','治':'zhi','中':'zhong','钟':'zhong','种':'zhong','重':'zhong','州':'zhou','周':'zhou','主':'zhu','住':'zhu','注':'zhu','祝':'zhu','专':'zhuan','转':'zhuan','装':'zhuang','准':'zhun','子':'zi','自':'zi','字':'zi','资':'zi','走':'zou','足':'zu','组':'zu','最':'zui','昨':'zuo','左':'zuo','作':'zuo','做':'zuo','坐':'zuo',
+};
+
 function pinyinSortKey(s) {
 const text = String(s || '').trim();
 if (!text) return '~';
+try {
 if (typeof pinyinPro !== 'undefined' && pinyinPro.pinyin) {
 return pinyinPro.pinyin(text, { toneType: 'none', v: true }).replace(/\s+/g, '').toLowerCase();
 }
-return text.toLowerCase();
+} catch (_) {}
+// 本地字典 fallback：逐字查拼音
+let result = '';
+for (const ch of text) {
+result += (PINYIN_MAP[ch] || ch.toLowerCase());
+}
+return result;
 }
 
 function profileSortKey(key) {
@@ -385,7 +416,7 @@ const kb = profileSortKey(b);
 if (ka.star !== kb.star) return ka.star - kb.star;
 // 2. 有称呼优先，避免纯ID夹在命名用户中间
 if (ka.named !== kb.named) return ka.named - kb.named;
-// 3. 显示名按拼音混排（pinyin-pro）
+// 3. 显示名按拼音混排（pinyin-pro + 本地字典 fallback）
 const pCmp = ka.pName.localeCompare(kb.pName);
 if (pCmp !== 0) return pCmp;
 // 4. key 拼音兜底
