@@ -8,8 +8,6 @@ let currentQuery = '';
 let currentProfiles = {};  // 当前页数据
 let statsCache = null;
 let debugInfo = null;
-let bulkMode = false;
-const selectedCards = new Set();
 const LOCAL_CACHE_KEY = 'soulmap_webui_profiles_cache_v2';
 const API_BASE = window.location.pathname.replace(/\/[^/]*$/, '').replace(/\/$/, '');
 const WEBUI_DEBUG = (typeof window.soulmapWebuiDebug === 'boolean')
@@ -410,11 +408,10 @@ const platformBadge = platform ? `<span class="platform-badge">${esc(platform)}<
 const fs = Object.keys(p).filter(f => !f.startsWith('_'));
 const chips = fs.slice(0, 4).map(f => `<span class="chip">${esc(f)}</span>`).join('');
 const more = fs.length > 4 ? `<span class="chip">+${fs.length - 4}</span>` : '';
-const checked = selectedCards.has(k) ? 'checked' : '';
 const starred = isStarred(k);
 const starIcon = starred ? '⭐' : '☆';
 const pinBtn = `<button class="star-btn ${starred ? 'starred' : ''}" onclick="event.stopPropagation(); toggleStar(${jsArg(k)})" title="${starred ? '取消星标' : '添加星标'}" aria-label="${starred ? '取消星标' : '添加星标'}">${starIcon}</button>`;
-return `<div class="card" onclick="handleCardClick(event, ${jsArg(k)})"><input class="select-box" type="checkbox" ${checked} onclick="toggleCardSelected(event, ${jsArg(k)})">${platformBadge}${pinBtn}<div class="card-top"><div class="card-info"><div class="card-name">${esc(name)}</div><div class="card-sub">${esc(subTitle)}</div></div></div><div class="chips">${chips}${more}</div></div>`;
+return `<div class="card" onclick="handleCardClick(event, ${jsArg(k)})">${platformBadge}${pinBtn}<div class="card-top"><div class="card-info"><div class="card-name">${esc(name)}</div><div class="card-sub">${esc(subTitle)}</div></div></div><div class="chips">${chips}${more}</div></div>`;
 }).join('');
 }
 
@@ -619,93 +616,39 @@ async function delField(k, f) {
   } catch (e) { snk(e.message || '请求失败'); }
 }
 
-function updateBulkCount() {
-const el = document.getElementById('bulk-selected-count');
-if (el) el.textContent = String(selectedCards.size);
-const list = document.getElementById('ulist');
-if (list) list.classList.toggle('bulk-mode', bulkMode);
-const btn = document.getElementById('bulk-toggle');
-if (btn) btn.textContent = bulkMode ? '退出选择' : '选择画像卡';
-}
-
-function toggleBulkMode() {
-bulkMode = !bulkMode;
-if (!bulkMode) selectedCards.clear();
-renderUL(currentProfiles, true);
-updateBulkCount();
-}
-
-function toggleCardSelected(event, key) {
-event.stopPropagation();
-if (selectedCards.has(key)) selectedCards.delete(key);
-else selectedCards.add(key);
-updateBulkCount();
-}
-
 function handleCardClick(event, key) {
-if (bulkMode) {
-if (selectedCards.has(key)) selectedCards.delete(key);
-else selectedCards.add(key);
-renderUL(currentProfiles, true);
-updateBulkCount();
-return;
-}
 openD(key);
-}
-
-function selectAllCards() {
-bulkMode = true;
-document.querySelectorAll('#ulist .card').forEach(card => {
-const onclick = card.getAttribute('onclick') || '';
-const m = onclick.match(/handleCardClick\(event,\s*'((?:\\'|[^'])*)'\)/);
-if (m) selectedCards.add(m[1].replace(/\\'/g, "'"));
-});
-renderUL(currentProfiles, true);
-updateBulkCount();
-}
-
-async function batchDeleteCards() {
-if (!selectedCards.size) { snk('请先选择画像卡'); return; }
-const keys = Array.from(selectedCards);
-const ok = await confirmAction({
-title: '批量删除画像卡',
-message: `确定删除选中的 ${keys.length} 个画像？此操作不可撤销。`,
-okText: '删除'
-});
-if (!ok) return;
-try {
-const d = await apiJson(apiUrl('/api/batch-delete'), {
-method: 'POST',
-headers: { 'Content-Type': 'application/json' },
-body: JSON.stringify({ keys })
-});
-if (d.success) {
-selectedCards.clear();
-bulkMode = false;
-localStorage.removeItem(LOCAL_CACHE_KEY);
-statsCache = null;
-debugInfo = null;
-await refreshData();
-snk(d.message || '批量删除完成');
-} else snk(d.error || '批量删除失败');
-} catch (e) { snk(e.message || '批量删除请求失败'); }
 }
 
 async function batchClean() {
 const inp = document.getElementById('batch-clean-keyword');
 const keyword = (inp && inp.value ? inp.value : '').trim();
 if (!keyword) { snk('请输入要清理的关键词'); return; }
+try {
+const preview = await apiJson(apiUrl('/api/batch-clean'), {
+method: 'POST',
+headers: { 'Content-Type': 'application/json' },
+body: JSON.stringify({ keyword, preview: true })
+});
+if (!preview.success) { snk(preview.error || '预览失败'); return; }
+const users = preview.affected_user_keys || [];
+const autoProfiles = preview.auto_deleted_profiles || [];
+const autoPlatforms = preview.auto_deleted_platforms || [];
+const lines = [];
+lines.push(preview.message || '清理预览');
+if (users.length) lines.push(`\n影响用户：\n${users.slice(0, 30).join('\n')}${users.length > 30 ? '\n...' : ''}`);
+if (autoProfiles.length) lines.push(`\n自动清理空画像：\n${autoProfiles.slice(0, 30).join('\n')}${autoProfiles.length > 30 ? '\n...' : ''}`);
+if (autoPlatforms.length) lines.push(`\n自动清理孤立平台记录：\n${autoPlatforms.slice(0, 30).join('\n')}${autoPlatforms.length > 30 ? '\n...' : ''}`);
 const ok = await confirmAction({
-title: '批量清理词条',
-message: `确定批量清理包含「${keyword}」的词条？此操作不可撤销。`,
-okText: '清理'
+title: '批量清理预览',
+message: lines.join('\n'),
+okText: '确认清理'
 });
 if (!ok) return;
-try {
 const d = await apiJson(apiUrl('/api/batch-clean'), {
 method: 'POST',
 headers: { 'Content-Type': 'application/json' },
-body: JSON.stringify({ keyword })
+body: JSON.stringify({ keyword, preview: false })
 });
 if (d.success) {
 localStorage.removeItem(LOCAL_CACHE_KEY);
