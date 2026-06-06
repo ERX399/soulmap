@@ -231,58 +231,6 @@ body {
 }
 .batch-clean button:active { transform: scale(.96); }
 
-.bulk-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  justify-content: flex-end;
-  margin: -4px 0 12px;
-}
-.bulk-actions button {
-  border: 1px solid var(--outlinev);
-  background: var(--sf1);
-  color: var(--on-sfv);
-  border-radius: 999px;
-  padding: 6px 12px;
-  font-size: 12px;
-  cursor: pointer;
-  -webkit-appearance: none;
-  -webkit-tap-highlight-color: transparent;
-  transition: background .15s, border-color .15s, transform .1s;
-  outline: none;
-}
-.bulk-actions button:hover {
-  background: var(--sf2);
-  border-color: var(--outline);
-}
-.bulk-actions button:active {
-  transform: scale(.96);
-}
-.bulk-actions button.danger {
-  border-color: rgba(242,184,181,.45);
-  background: rgba(242,184,181,.12);
-  color: var(--err);
-}
-.bulk-actions button.danger:hover {
-  background: rgba(242,184,181,.2);
-  border-color: rgba(242,184,181,.6);
-}
-.bulk-actions button.danger:active {
-  background: rgba(242,184,181,.25);
-  transform: scale(.96);
-}
-.select-box {
-  position: absolute;
-  left: 8px;
-  top: 8px;
-  z-index: 2;
-  display: none;
-  width: 18px;
-  height: 18px;
-  accent-color: var(--pri);
-}
-.bulk-mode .select-box { display: block; }
-.bulk-mode .card { padding-left: 34px; }
 .star-btn {
   position: absolute;
   top: 8px;
@@ -876,14 +824,10 @@ body {
       <input id="q" placeholder="搜索用户或内容..." oninput="filterUsers()">
     </div>
     <div class="batch-clean">
-      <input id="batch-clean-keyword" placeholder="输入关键词">
-      <button onclick="batchClean()">批量清理</button>
-    </div>
-    <div class="bulk-actions">
-      <button onclick="toggleBulkMode()" id="bulk-toggle">选择画像卡</button>
-      <button class="danger" onclick="batchDeleteCards()">删除选中 <span id="bulk-selected-count">0</span></button>
-    </div>
-    <div class="grid" id="ulist"></div>
+<input id="batch-clean-keyword" placeholder="输入关键词">
+<button onclick="batchClean()">预览清理</button>
+</div>
+<div class="grid" id="ulist"></div>
   </div>
   <div id="tab-stats" class="tab-content" style="display:none">
     <div id="stats-c"></div>
