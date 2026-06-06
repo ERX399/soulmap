@@ -366,7 +366,7 @@ class SoulMapManager:
         if "gewechat" in low:
             return "gewechat"
         if "wecom" in low or "企业微信" in low:
-            # 企业微信适配器的 UMO 第一段可能是配置名，如 wecom2:FriendMessage:xxx。
+            # 企业微信适配器的 UMO 第一段可能是动态配置名。
             # 平台名统一归一为 wecom，配置名保留在 origin 中用于路由/排查。
             return "wecom"
         if "telegram" in low or low.startswith("tg"):
@@ -389,7 +389,7 @@ class SoulMapManager:
             return ""
         if p == "telegram" or p == "tg":
             return "TG"
-        if p in {"wecom", "wecom2"} or "wecom" in p:
+        if p == "wecom" or "wecom" in p:
             return "企业微信"
         if p == "gewechat" or "wechat" in p:
             return "微信"
