@@ -365,6 +365,10 @@ class SoulMapManager:
         low = text.lower()
         if "gewechat" in low:
             return "gewechat"
+        if "wecom" in low or "企业微信" in low:
+            # 企业微信适配器的 UMO 第一段可能是配置名，如 wecom2:FriendMessage:xxx。
+            # 平台名统一归一为 wecom，配置名保留在 origin 中用于路由/排查。
+            return "wecom"
         if "telegram" in low or low.startswith("tg"):
             return "telegram"
         if "aiocqhttp" in low or "cqhttp" in low:
@@ -385,6 +389,8 @@ class SoulMapManager:
             return ""
         if p == "telegram" or p == "tg":
             return "TG"
+        if p in {"wecom", "wecom2"} or "wecom" in p:
+            return "企业微信"
         if p == "gewechat" or "wechat" in p:
             return "微信"
         if p == "aiocqhttp" or "cqhttp" in p or p == "qq":
@@ -719,7 +725,7 @@ class SoulMapPlugin(Star):
             "健康状况", "宠物", "备注"
         ])
         max_notes_count = self._cfg("max_notes_count", 5)
-        self.support_platforms = {"aiocqhttp", "telegram", "gewechat"}
+        self.support_platforms = {"aiocqhttp", "telegram", "gewechat", "wecom"}
 
         self.manager = SoulMapManager(data_dir, allowed_fields, max_notes_count)
 
