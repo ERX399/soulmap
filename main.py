@@ -896,13 +896,24 @@ class SoulMapPlugin(Star):
         prompt_tmpl = self._cfg("profile_audit_prompt", "")
         if not prompt_tmpl:
             prompt_tmpl = (
-                "你是用户画像审核器。请审核候选画像是否合理、明确、无臆测。"
-                "只返回JSON对象，格式：{\"字段\":{\"action\":\"keep|modify|drop\",\"value\":\"修正值\",\"reason\":\"原因\"}}。"
+                "你是用户画像审核器和字段分类器。请审核候选画像是否合理、明确、无臆测，并把内容归类到最合适的允许字段。"
+                "只返回JSON对象，格式：{\"原字段\":{\"action\":\"keep|modify|drop|move\",\"field\":\"目标字段\",\"value\":\"修正值\",\"reason\":\"原因\"}}。"
+                "action说明：keep=保留原字段；modify=修正原字段的值；drop=丢弃；move=移动/分类到更合适字段，field必须是允许字段。"
+                "例如备注=喜欢篮球应 move 到 爱好=篮球；备注=在上海工作可 move 到 所在地=上海 或 职业=相关职业。"
                 "不确定、无意义、隐私过度推断、格式明显错误时 drop。"
             )
 
+        classification_protocol = (
+            "\n\n【保守字段自动分类协议】\n"
+            "只允许把明显误入备注的信息从 备注 move 到更合适的允许字段；不要对非备注字段 move。"
+            "move 的 field 必须来自允许字段，且不能是备注；不要扩写。"
+            "普通字段只允许单项短值。多项只允许用于 爱好/爱吃/忌口/技能水平/宠物，最多5项，每项最多12字，使用顿号分隔。"
+            "如果信息不够确定、目标字段已有同类候选、需要追加太多项、或可能导致长期字段膨胀，请 keep 在备注或 drop。"
+            "示例：{\"备注\":{\"action\":\"move\",\"field\":\"爱好\",\"value\":\"篮球、音乐\",\"reason\":\"明确列举的兴趣\"}}。"
+            "如果原字段已经合适，则 keep 或 modify；不确定则 drop。\n"
+        )
         prompt = (
-            f"{prompt_tmpl}\n\n"
+            f"{prompt_tmpl}{classification_protocol}\n"
             f"原始回复文本：{original_text[:1500]}\n"
             f"允许字段：{self.manager.allowed_fields}\n"
             f"候选画像JSON：{json.dumps(audit_items, ensure_ascii=False)}"
@@ -975,6 +986,53 @@ class SoulMapPlugin(Star):
                     else:
                         logger.info(f"[SoulMap] LLM审核修正值未通过规则，跳过 {field}: {reason}")
                         new_ops.pop(field, None)
+                elif action in {"move", "classify", "reclassify"}:
+                    # 保守分类：只允许把“备注”里明显误入的信息移动到空目标字段。
+                    # 多项只对白名单字段开放，并限制条数/单项长度，避免长期画像字段被 LLM 自动塞爆。
+                    if field != "备注":
+                        logger.info(f"[SoulMap] LLM分类被拒绝：仅允许从备注移动，当前字段={field}")
+                        continue
+                    target_field = str(
+                        decision.get("field") or decision.get("target_field") or decision.get("target") or ""
+                    ).strip()
+                    target_field = self.manager._normalize_field_name(target_field)
+                    new_value = str(decision.get("value", "")).strip()
+                    if not target_field or target_field == "备注":
+                        logger.info(f"[SoulMap] LLM分类目标字段无效，跳过 {field}->{target_field}")
+                        continue
+                    if target_field in new_ops:
+                        logger.info(f"[SoulMap] LLM分类被拒绝：目标字段已有候选更新，避免追加膨胀 {target_field}")
+                        continue
+
+                    multi_value_fields = {"爱好", "爱吃", "忌口", "技能水平", "宠物"}
+                    raw_parts = [p.strip() for p in re.split(r"[;；,，、/|\\n]", new_value) if p.strip()]
+                    if target_field in multi_value_fields:
+                        parts = raw_parts or ([new_value] if new_value else [])
+                        if len(parts) > 5:
+                            logger.info(f"[SoulMap] LLM分类被拒绝：{target_field} 多项超过5个 {parts}")
+                            continue
+                        if any(len(p) > 12 for p in parts):
+                            logger.info(f"[SoulMap] LLM分类被拒绝：{target_field} 存在过长条目 {parts}")
+                            continue
+                        # 去重保序，统一用顿号保存。
+                        seen, cleaned_parts = set(), []
+                        for part in parts:
+                            if part not in seen:
+                                cleaned_parts.append(part)
+                                seen.add(part)
+                        new_value = "、".join(cleaned_parts)
+                    else:
+                        if len(new_value) > 30 or re.search(r"[;；,，、/|\\n]", new_value):
+                            logger.info(f"[SoulMap] LLM分类被拒绝：非多项字段值过长或像列表 {field}->{target_field}={new_value}")
+                            continue
+
+                    ok, fixed, reason = self._audit_profile_value_by_rules(target_field, new_value)
+                    if not ok:
+                        logger.info(f"[SoulMap] LLM分类结果未通过规则，跳过 {field}->{target_field}: {reason}")
+                        continue
+                    new_ops.pop(field, None)
+                    new_ops[target_field] = ("update", fixed)
+                    logger.info(f"[SoulMap] LLM保守自动分类: {field} -> {target_field} = {fixed}")
             return new_ops
         except Exception as e:
             logger.warning(f"[SoulMap] LLM画像审核失败，使用规则审核结果: {e}")
