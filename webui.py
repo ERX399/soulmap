@@ -213,6 +213,28 @@ def load_platforms() -> dict:
     return _load_json_file(PLATFORM_FILE)
 
 
+def save_platforms(data: dict):
+    _write_json_file(PLATFORM_FILE, dict(sorted((data or {}).items(), key=lambda item: str(item[0] or "").casefold())))
+
+
+def _profile_has_public_content(profile: dict) -> bool:
+    """是否存在真实画像字段；_last_updated/_platform 等元信息不算画像内容。"""
+    if not isinstance(profile, dict):
+        return False
+    return any(not str(field).startswith("_") and bool(str(value).strip()) for field, value in profile.items())
+
+
+def _is_auto_cleanable_empty_profile(profile: dict) -> bool:
+    """自动清理空画像：只有 _last_updated 或无公开字段且未星标。"""
+    if not isinstance(profile, dict):
+        return True
+    if _profile_has_public_content(profile):
+        return False
+    if profile.get("_starred"):
+        return False
+    return True
+
+
 def merge_platforms(profiles: dict, keys=None) -> dict:
     """合并平台信息到画像，只对含平台的用户创建浅拷贝，减少内存分配。"""
     platforms = load_platforms()
@@ -499,22 +521,35 @@ class SoulMapWebServer:
     async def handle_batch_clean(self, request):
         body = await self._read_json(request)
         keyword = str(body.get("keyword", "")).strip()
+        preview = bool(body.get("preview", False))
         if not keyword:
             return self._json({"error": "关键词不能为空"}, 400)
         if len(keyword) > 80:
             return self._json({"error": "关键词过长，请缩短后重试"}, 400)
 
         profiles = cache.get_data()
+        platforms = load_platforms()
         affected_users = set()
         removed_fields = 0
         removed_notes = 0
         details = []
+        auto_deleted_profiles = []
+        auto_deleted_platforms = []
 
-        for user_key, profile in list(profiles.items()):
+        # preview 时在浅拷贝上模拟删除，保证预览能准确展示“清理后会变空”的画像。
+        working_profiles = {
+            key: dict(value) if isinstance(value, dict) else value
+            for key, value in (profiles or {}).items()
+        } if preview else profiles
+
+        for user_key, profile in list(working_profiles.items()):
             if not isinstance(profile, dict):
+                auto_deleted_profiles.append(user_key)
+                if not preview:
+                    working_profiles.pop(user_key, None)
                 continue
-            changed = False
 
+            changed = False
             for field in list(profile.keys()):
                 if str(field).startswith("_"):
                     continue
@@ -533,24 +568,56 @@ class SoulMapWebServer:
                         removed_notes += removed
                         changed = True
                         affected_users.add(user_key)
-                        details.append({"user": user_key, "field": field, "removed": removed})
+                        details.append({"user": user_key, "field": field, "type": "note", "removed": removed})
                         if kept:
                             profile[field] = "；".join(kept)
                         else:
                             profile.pop(field, None)
                 else:
                     if keyword in text:
-                        profile.pop(field, None)
                         removed_fields += 1
                         changed = True
                         affected_users.add(user_key)
-                        details.append({"user": user_key, "field": field, "removed": 1})
+                        details.append({"user": user_key, "field": field, "type": "field", "removed": 1})
+                        profile.pop(field, None)
 
             if changed:
                 profile["_last_updated"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        if affected_users:
-            save_profiles(profiles)
+            # 清理后如果只剩 _last_updated/_platform 等元字段，则删除空画像。
+            if _is_auto_cleanable_empty_profile(profile):
+                auto_deleted_profiles.append(user_key)
+                if not preview:
+                    working_profiles.pop(user_key, None)
+
+        # 自动清理：平台文件中存在，但 profiles 中没有真实画像的用户。
+        profile_keys_after = set(working_profiles.keys())
+        for user_key in list(platforms.keys()):
+            profile = working_profiles.get(user_key)
+            if user_key not in profile_keys_after or _is_auto_cleanable_empty_profile(profile):
+                auto_deleted_platforms.append(user_key)
+                if not preview:
+                    platforms.pop(user_key, None)
+
+        if preview:
+            return self._json({
+                "success": True,
+                "preview": True,
+                "keyword": keyword,
+                "affected_users": len(affected_users),
+                "affected_user_keys": sorted(affected_users)[:200],
+                "removed_fields": removed_fields,
+                "removed_notes": removed_notes,
+                "details": details[:200],
+                "auto_deleted_profiles": sorted(set(auto_deleted_profiles))[:200],
+                "auto_deleted_platforms": sorted(set(auto_deleted_platforms))[:200],
+                "message": f"预览：影响用户 {len(affected_users)}，将删除字段 {removed_fields}，备注 {removed_notes} 条；自动清理空画像 {len(set(auto_deleted_profiles))} 个、孤立平台记录 {len(set(auto_deleted_platforms))} 个"
+            })
+
+        if affected_users or auto_deleted_profiles:
+            save_profiles(working_profiles)
+        if auto_deleted_platforms:
+            save_platforms(platforms)
 
         return self._json({
             "success": True,
@@ -558,8 +625,10 @@ class SoulMapWebServer:
             "affected_users": len(affected_users),
             "removed_fields": removed_fields,
             "removed_notes": removed_notes,
+            "auto_deleted_profiles": len(set(auto_deleted_profiles)),
+            "auto_deleted_platforms": len(set(auto_deleted_platforms)),
             "details": details[:50],
-            "message": f"已清理包含「{keyword}」的词条：影响用户 {len(affected_users)}，删除字段 {removed_fields}，删除备注 {removed_notes} 条"
+            "message": f"已清理包含「{keyword}」的词条：影响用户 {len(affected_users)}，删除字段 {removed_fields}，删除备注 {removed_notes} 条；自动清理空画像 {len(set(auto_deleted_profiles))} 个、孤立平台记录 {len(set(auto_deleted_platforms))} 个"
         })
 
     async def handle_stats(self, request):
