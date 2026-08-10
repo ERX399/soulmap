@@ -1,3 +1,17 @@
+<div align="center">
+
+![:name](https://count.getloli.com/@soulmap?name=soulmap&theme=minecraft&padding=6&offset=0&align=top&scale=1&pixelated=1&darkmode=auto)
+
+# SoulMap 用户画像
+
+_✨ AI 驱动的用户画像收集系统 ✨_
+
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
+[![AstrBot](https://img.shields.io/badge/AstrBot-3.4%2B-orange.svg)](https://github.com/Soulter/AstrBot)
+[![GitHub](https://img.shields.io/badge/作者-ERX399-blue)](https://github.com/ERX399)
+
+</div>
+
 # 用户画像 (SoulMap)
 
 AI驱动的用户画像收集系统，在聊天中自动提取用户信息，并在对话中自然运用。
